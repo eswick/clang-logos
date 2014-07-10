@@ -199,6 +199,11 @@ static bool isObjCAutoRefCount(const ArgList &Args) {
   return Args.hasFlag(options::OPT_fobjc_arc, options::OPT_fno_objc_arc, false);
 }
 
+/// \brief Determine whether ObjC-Logos is enabled.
+static bool isObjCLogos(const ArgList &Args) {
+  return Args.hasFlag(options::OPT_fobjc_logos, options::OPT_fno_objc_logos, false);
+}
+
 /// \brief Determine whether we are linking the ObjC runtime.
 static bool isObjCRuntimeLinked(const ArgList &Args) {
   if (isObjCAutoRefCount(Args)) {
@@ -3411,6 +3416,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_objc_arc_exceptions,
                      /*default*/ types::isCXX(InputType)))
       CmdArgs.push_back("-fobjc-arc-exceptions");
+  }
+  
+  // Handle -fobjc-logos
+  if (isObjCLogos(Args)) {
+    CmdArgs.push_back("-fobjc-logos");
   }
 
   // -fobjc-infer-related-result-type is the default, except in the Objective-C

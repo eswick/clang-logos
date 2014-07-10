@@ -1200,6 +1200,7 @@ private:
   void StashAwayMethodOrFunctionBodyTokens(Decl *MDecl);
 
   DeclGroupPtrTy ParseObjCAtImplementationDeclaration(SourceLocation AtLoc);
+  DeclGroupPtrTy ParseObjCAtHookDeclaration(SourceLocation AtLoc);
   DeclGroupPtrTy ParseObjCAtEndDeclaration(SourceRange atEnd);
   Decl *ParseObjCAtAliasDeclaration(SourceLocation atLoc);
   Decl *ParseObjCPropertySynthesize(SourceLocation atLoc);

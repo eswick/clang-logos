@@ -6681,6 +6681,9 @@ public:
                                          SourceLocation ClassLoc,
                                          IdentifierInfo *CatName,
                                          SourceLocation CatLoc);
+                                         
+  Decl *ActOnStartHook(SourceLocation AtHookLoc,
+                       IdentifierInfo *ClassName, SourceLocation ClassLoc);
 
   DeclGroupPtrTy ActOnFinishObjCImplementation(Decl *ObjCImpDecl,
                                                ArrayRef<Decl *> Decls);

@@ -187,6 +187,9 @@ void IdentifierTable::AddKeywords(const LangOptions &LangOpts) {
 #define OBJC2_AT_KEYWORD(NAME) \
   if (LangOpts.ObjC2)          \
     AddObjCKeyword(StringRef(#NAME), tok::objc_##NAME, *this);
+#define OBJC_LOGOS_KEYWORD(NAME) \
+  if (LangOpts.Logos)            \
+    AddObjCKeyword(StringRef(#NAME), tok::objc_##NAME, *this);
 #define TESTING_KEYWORD(NAME, FLAGS)
 #include "clang/Basic/TokenKinds.def"
 

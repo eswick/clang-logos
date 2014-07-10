@@ -1214,6 +1214,69 @@ void Sema::CheckImplementationIvars(ObjCImplementationDecl *ImpDecl,
     Diag(IVI->getLocation(), diag::err_inconsistant_ivar_count);
 }
 
+Decl *Sema::ActOnStartHook(SourceLocation AtHookLoc,
+                          IdentifierInfo *ClassName, SourceLocation ClassLoc) {
+  ObjCInterfaceDecl *IDecl = nullptr;
+  // Check for another declaration kind with the same name.
+  NamedDecl *PrevDecl
+    = LookupSingleName(TUScope, ClassName, ClassLoc, LookupOrdinaryName,
+                       ForRedeclaration);
+  if (PrevDecl && isa<ObjCHookDecl>(PrevDecl)) {
+    Diag(ClassLoc, diag::err_redefinition_different_kind) << ClassName;
+    Diag(PrevDecl->getLocation(), diag::note_previous_definition);
+  } else if ((IDecl = dyn_cast_or_null<ObjCInterfaceDecl>(PrevDecl))) {
+    RequireCompleteType(ClassLoc, Context.getObjCInterfaceType(IDecl),
+                        diag::warn_undef_interface);
+  } else {
+    // We did not find anything with the name ClassName; try to correct for
+    // typos in the class name.
+    ObjCInterfaceValidatorCCC Validator;
+    TypoCorrection Corrected =
+                CorrectTypo(DeclarationNameInfo(ClassName, ClassLoc),
+                            LookupOrdinaryName, TUScope, nullptr, Validator);
+    if (Corrected.getCorrectionDeclAs<ObjCInterfaceDecl>()) {
+      // Suggest the (potentially) correct interface name. Don't provide a
+      // code-modification hint or use the typo name for recovery, because
+      // this is just a warning. The program may actually be correct.
+      diagnoseTypo(Corrected,
+                   PDiag(diag::warn_undef_interface_suggest) << ClassName,
+                   /*ErrorRecovery*/false);
+    } else {
+      Diag(ClassLoc, diag::warn_undef_interface) << ClassName;
+    }
+  }
+  
+  if (!IDecl) {
+    // Legacy case of @hook with no corresponding @interface.
+    // Build, chain & install the interface decl into the identifier.
+    
+    IDecl = ObjCInterfaceDecl::Create(Context, CurContext, AtHookLoc, ClassName, 
+                                      /*PrevDecl=*/nullptr, ClassLoc, true);
+                                      
+    IDecl->startDefinition();
+    IDecl->setEndOfDefinitionLoc(ClassLoc);
+    PushOnScopeChains(IDecl, TUScope);
+  } else {
+    // Mark the interface as being completed, even if it was just as
+    //   @class ....;
+    // declaration; the user cannot reopen it.
+    if (!IDecl->hasDefinition())
+      IDecl->startDefinition();
+  }
+  
+  ObjCHookDecl *HookDecl = 
+    ObjCHookDecl::Create(Context, CurContext, IDecl, ClassLoc, AtHookLoc);
+  
+  
+  if (CheckObjCDeclScope(HookDecl))
+    return ActOnObjCContainerStartDefinition(HookDecl);
+  
+  // TODO: Check that there is no duplicate hook of this class.
+  PushOnScopeChains(HookDecl, TUScope);
+  
+  return ActOnObjCContainerStartDefinition(HookDecl);
+}
+
 void Sema::WarnUndefinedMethod(SourceLocation ImpLoc, ObjCMethodDecl *method,
                                bool &IncompleteImpl, unsigned DiagID) {
   // No point warning no definition of method which is 'unavailable'.

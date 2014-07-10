@@ -43,6 +43,7 @@ void Parser::MaybeSkipAttributes(tok::ObjCKeywordKind Kind) {
 /// [OBJC]  objc-protocol-definition
 /// [OBJC]  objc-method-definition
 /// [OBJC]  '@' 'end'
+/// [OBJC-LOGOS] objc-hook-definition
 Parser::DeclGroupPtrTy Parser::ParseObjCAtDirectives() {
   SourceLocation AtLoc = ConsumeToken(); // the "@"
 
@@ -81,9 +82,11 @@ Parser::DeclGroupPtrTy Parser::ParseObjCAtDirectives() {
   case tok::objc_import:
     if (getLangOpts().Modules)
       return ParseModuleImport(AtLoc);
-      
+  case tok::objc_hook:
+    if (getLangOpts().Logos)
+      return ParseObjCAtHookDeclaration(AtLoc);
     // Fall through
-      
+  
   default:
     Diag(AtLoc, diag::err_unexpected_at);
     SkipUntil(tok::semi);
@@ -1594,6 +1597,48 @@ Parser::ParseObjCAtImplementationDeclaration(SourceLocation AtLoc) {
   }
 
   return Actions.ActOnFinishObjCImplementation(ObjCImpDecl, DeclsInGroup);
+}
+
+Parser::DeclGroupPtrTy
+Parser::ParseObjCAtHookDeclaration(SourceLocation AtLoc) {
+  assert(Tok.isObjCAtKeyword(tok::objc_hook) &&
+         "ParseObjCAtHookDeclaration(): Expected @hook");
+         
+  CheckNestedObjCContexts(AtLoc);
+  ConsumeToken(); // the "hook" identifier
+  
+  // TODO: Code completion
+  
+  if (Tok.isNot(tok::identifier)) {
+    Diag(Tok, diag::err_expected_ident); // missing class name
+    return DeclGroupPtrTy();
+  }
+  
+  // We have a class name - consume it
+  IdentifierInfo *nameId = Tok.getIdentifierInfo();
+  SourceLocation nameLoc = ConsumeToken(); // consume class name
+  Decl *ObjCHookDecl = 0;
+  
+  ObjCHookDecl = Actions.ActOnStartHook(AtLoc, nameId, nameLoc);
+  
+  assert(ObjCHookDecl);
+  
+  SmallVector<Decl *, 8> DeclsInGroup;
+  
+  {
+    ObjCImplParsingDataRAII ObjCImplParsing(*this, ObjCHookDecl);
+    while (!ObjCImplParsing.isFinished() && Tok.isNot(tok::eof)) {
+      ParsedAttributesWithRange attrs(AttrFactory);
+      MaybeParseCXX11Attributes(attrs);
+      MaybeParseMicrosoftAttributes(attrs);
+      if (DeclGroupPtrTy DGP = ParseExternalDeclaration(attrs)) {
+        DeclGroupRef DG = DGP.get();
+        DeclsInGroup.append(DG.begin(), DG.end());
+      }
+    }
+  }
+  
+  return Actions.ActOnFinishObjCImplementation(ObjCHookDecl, DeclsInGroup);
 }
 
 Parser::DeclGroupPtrTy

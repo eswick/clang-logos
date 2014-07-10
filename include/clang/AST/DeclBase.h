@@ -42,6 +42,7 @@ class ObjCCategoryImplDecl;
 class ObjCContainerDecl;
 class ObjCImplDecl;
 class ObjCImplementationDecl;
+class ObjCHookDecl;
 class ObjCInterfaceDecl;
 class ObjCMethodDecl;
 class ObjCProtocolDecl;
@@ -1102,6 +1103,7 @@ public:
         case Decl::ObjCCategory:
         case Decl::ObjCCategoryImpl:
         case Decl::ObjCImplementation:
+        case Decl::ObjCHook:
         case Decl::ObjCInterface:
         case Decl::ObjCProtocol:
             return true;

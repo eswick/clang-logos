@@ -52,6 +52,7 @@ LANGOPT(CPlusPlus11       , 1, 0, "C++0x")
 LANGOPT(CPlusPlus1y       , 1, 0, "C++1y")
 LANGOPT(ObjC1             , 1, 0, "Objective-C 1")
 LANGOPT(ObjC2             , 1, 0, "Objective-C 2")
+LANGOPT(Logos             , 1, 0, "Logos")
 BENIGN_LANGOPT(ObjCDefaultSynthProperties , 1, 0,
                "Objective-C auto-synthesized properties")
 BENIGN_LANGOPT(EncodeExtendedBlockSig , 1, 0,
@@ -185,4 +186,3 @@ BENIGN_LANGOPT(RetainCommentsFromSystemHeaders, 1, 0, "retain documentation comm
 #undef BENIGN_LANGOPT
 #undef ENUM_LANGOPT
 #undef BENIGN_ENUM_LANGOPT
-

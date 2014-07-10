@@ -716,6 +716,8 @@ def fno_objc_infer_related_result_type : Flag<["-"],
   Flags<[CC1Option]>;
 def fobjc_link_runtime: Flag<["-"], "fobjc-link-runtime">, Group<f_Group>;
 
+def fobjc_logos : Flag<["-"], "fobjc-logos">, Group<f_Group>, Flags<[CC1Option]>;
+
 // Objective-C ABI options.
 def fobjc_runtime_EQ : Joined<["-"], "fobjc-runtime=">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Specify the target Objective-C runtime kind and version">;

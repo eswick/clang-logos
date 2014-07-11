@@ -1617,16 +1617,16 @@ Parser::ParseObjCAtHookDeclaration(SourceLocation AtLoc) {
   // We have a class name - consume it
   IdentifierInfo *nameId = Tok.getIdentifierInfo();
   SourceLocation nameLoc = ConsumeToken(); // consume class name
-  Decl *ObjCHookDecl = 0;
+  Decl *HookDecl = 0;
   
-  ObjCHookDecl = Actions.ActOnStartHook(AtLoc, nameId, nameLoc);
+  HookDecl = Actions.ActOnStartHook(AtLoc, nameId, nameLoc);
   
-  assert(ObjCHookDecl);
+  assert(HookDecl);
   
   SmallVector<Decl *, 8> DeclsInGroup;
   
   {
-    ObjCImplParsingDataRAII ObjCImplParsing(*this, ObjCHookDecl);
+    ObjCImplParsingDataRAII ObjCImplParsing(*this, HookDecl);
     while (!ObjCImplParsing.isFinished() && Tok.isNot(tok::eof)) {
       ParsedAttributesWithRange attrs(AttrFactory);
       MaybeParseCXX11Attributes(attrs);
@@ -1638,7 +1638,7 @@ Parser::ParseObjCAtHookDeclaration(SourceLocation AtLoc) {
     }
   }
   
-  return Actions.ActOnFinishObjCImplementation(ObjCHookDecl, DeclsInGroup);
+  return Actions.ActOnFinishObjCImplementation(HookDecl, DeclsInGroup);
 }
 
 Parser::DeclGroupPtrTy

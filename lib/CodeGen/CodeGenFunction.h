@@ -1081,6 +1081,12 @@ public:
                               llvm::Constant *AtomicHelperFn);
   bool IndirectObjCSetterArg(const CGFunctionInfo &FI);
   bool IvarTypeWithAggrGCObjects(QualType Ty);
+  
+  //===--------------------------------------------------------------------===//
+  //                                  ObjC-Logos
+  //===--------------------------------------------------------------------===//
+  
+  void GenerateLogosMethodHook(const ObjCMethodDecl *OMD, const ObjCHookDecl *Hook);
 
   //===--------------------------------------------------------------------===//
   //                                  Block Bits

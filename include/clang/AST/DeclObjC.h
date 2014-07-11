@@ -1973,6 +1973,9 @@ public:
                               ObjCInterfaceDecl *classInterface,
                               SourceLocation nameLoc,
                               SourceLocation atStartLoc);
+                              
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == ObjCHook; }
   
 };
 

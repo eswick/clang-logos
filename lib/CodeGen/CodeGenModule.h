@@ -1005,6 +1005,10 @@ public:
   /// EmitGlobal - Emit code for a singal global function or var decl. Forward
   /// declarations are emitted lazily.
   void EmitGlobal(GlobalDecl D);
+  
+  // FIXME: Hardcoding priority here is gross.
+  void AddGlobalCtor(llvm::Function *Ctor, int Priority=65535);
+  void AddGlobalDtor(llvm::Function *Dtor, int Priority=65535);
 
 private:
   llvm::GlobalValue *GetGlobalValue(StringRef Ref);
@@ -1077,10 +1081,6 @@ private:
   void EmitCXXGlobalVarDeclInitFunc(const VarDecl *D,
                                     llvm::GlobalVariable *Addr,
                                     bool PerformInit);
-
-  // FIXME: Hardcoding priority here is gross.
-  void AddGlobalCtor(llvm::Function *Ctor, int Priority=65535);
-  void AddGlobalDtor(llvm::Function *Dtor, int Priority=65535);
 
   /// EmitCtorList - Generates a global array of functions and priorities using
   /// the given list and name. This array will have appending linkage and is

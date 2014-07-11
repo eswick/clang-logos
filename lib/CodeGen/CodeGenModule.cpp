@@ -3008,7 +3008,8 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     break;
   }
   case Decl::ObjCHook: {
-    // TODO: Generate constructor for hooked methods
+    ObjCHookDecl *OHD = cast<ObjCHookDecl>(D);
+    CodeGenFunction(*this).GenerateHookConstructor(OHD);
     break;
   }
   case Decl::ObjCMethod: {
@@ -3018,7 +3019,8 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
       
       if (isa<ObjCHookDecl>(OMD->getDeclContext())) {
         // Generate Logos method hook
-        CodeGenFunction(*this).GenerateLogosMethodHook(OMD, cast<ObjCHookDecl>(OMD->getDeclContext()));
+        CodeGenFunction(*this).GenerateLogosMethodHook(OMD, 
+                                    cast<ObjCHookDecl>(OMD->getDeclContext()));
       }else{
         // Generate normal method
         CodeGenFunction(*this).GenerateObjCMethod(OMD);

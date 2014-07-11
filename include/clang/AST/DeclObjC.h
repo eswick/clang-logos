@@ -18,6 +18,11 @@
 #include "clang/AST/SelectorLocationsKind.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/ADT/DenseSet.h"
+
+namespace llvm {
+  class Function;
+}
 
 namespace clang {
 class Expr;
@@ -1964,6 +1969,10 @@ raw_ostream &operator<<(raw_ostream &OS, const ObjCImplementationDecl &ID);
 class ObjCHookDecl : public ObjCImplDecl {
   virtual void anchor();
   
+  /// MethodDefinitions - map of methods which have been defined in
+  /// this hook.
+  llvm::DenseMap<const ObjCMethodDecl*, llvm::Function*> MethodDefinitions;
+  
   ObjCHookDecl(DeclContext *DC,
                ObjCInterfaceDecl *classInterface,
                SourceLocation nameLoc, SourceLocation atStartLoc)
@@ -1973,6 +1982,9 @@ public:
                               ObjCInterfaceDecl *classInterface,
                               SourceLocation nameLoc,
                               SourceLocation atStartLoc);
+                          
+  void RegisterMethodDefinition(const ObjCMethodDecl *OMD, llvm::Function *Fn);
+  llvm::Function *GetMethodDefinition(const ObjCMethodDecl *OMD);
                               
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == ObjCHook; }

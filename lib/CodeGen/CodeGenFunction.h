@@ -1086,7 +1086,17 @@ public:
   //                                  ObjC-Logos
   //===--------------------------------------------------------------------===//
   
-  void GenerateLogosMethodHook(const ObjCMethodDecl *OMD, const ObjCHookDecl *Hook);
+  void GenerateLogosMethodHook(const ObjCMethodDecl *OMD, ObjCHookDecl *Hook);
+  
+  
+  llvm::Function* StartLogosConstructor();
+  llvm::CallInst* EmitGetClassRuntimeCall(std::string ClassName);
+  void EmitMessageHook(llvm::CallInst *_class, 
+                       llvm::Value *message, 
+                       llvm::Function* hook, 
+                       llvm::Value *old);
+                       
+  void GenerateHookConstructor(ObjCHookDecl *OHD);
 
   //===--------------------------------------------------------------------===//
   //                                  Block Bits

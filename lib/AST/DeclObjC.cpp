@@ -1742,6 +1742,20 @@ ObjCHookDecl::Create(ASTContext &C, DeclContext *DC,
   return new (C) ObjCHookDecl(DC, ClassInterface, nameLoc, atStartLoc);
 }
 
+void ObjCHookDecl::RegisterMethodDefinition(const ObjCMethodDecl *OMD, 
+                                            llvm::Function *Fn) {
+  MethodDefinitions.insert(std::make_pair(OMD, Fn));
+}
+
+llvm::Function *ObjCHookDecl::GetMethodDefinition(const ObjCMethodDecl *OMD) {
+  llvm::DenseMap<const ObjCMethodDecl*, llvm::Function*>::iterator
+      I = MethodDefinitions.find(OMD);
+  if (I != MethodDefinitions.end())
+    return I->second;
+
+  return NULL;
+}
+
 //===----------------------------------------------------------------------===//
 // ObjCCompatibleAliasDecl
 //===----------------------------------------------------------------------===//

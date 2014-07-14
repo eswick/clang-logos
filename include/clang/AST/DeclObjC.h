@@ -118,7 +118,7 @@ public:
 ///
 class ObjCMethodDecl : public NamedDecl, public DeclContext {
 public:
-  enum ImplementationControl { None, Required, Optional };
+  enum ImplementationControl { None, Required, Optional, New };
 private:
   // The conventional meaning of this method; an ObjCMethodFamily.
   // This is not serialized; instead, it is computed on demand and

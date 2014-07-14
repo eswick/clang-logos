@@ -3196,7 +3196,9 @@ Decl *Sema::ActOnMethodDeclaration(
                            /*isImplicitlyDeclared=*/false, /*isDefined=*/false,
                            MethodDeclKind == tok::objc_optional 
                              ? ObjCMethodDecl::Optional
-                             : ObjCMethodDecl::Required,
+                             : (MethodDeclKind == tok::objc_new
+                               ? ObjCMethodDecl::New
+                               : ObjCMethodDecl::Required),
                            HasRelatedResultType);
 
   SmallVector<ParmVarDecl*, 16> Params;

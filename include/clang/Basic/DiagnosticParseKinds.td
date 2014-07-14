@@ -409,6 +409,8 @@ def err_objc_property_bitfield : Error<"property name cannot be a bitfield">;
 def err_objc_expected_property_attr : Error<"unknown property attribute %0">;
 def err_objc_properties_require_objc2 : Error<
   "properties are an Objective-C 2 feature">;
+def err_objc_new_requires_logos : Error<
+  "@new is a Logos feature">;
 def err_objc_unexpected_attr : Error<
   "prefix attribute must be followed by an interface or protocol">;
 def err_objc_postfix_attribute : Error <
@@ -418,6 +420,8 @@ def err_objc_postfix_attribute_hint : Error <
   " them in front of '%select{@interface|@protocol}0'">;
 def err_objc_directive_only_in_protocol : Error<
   "directive may only be specified in protocols only">;
+def err_objc_directive_only_in_interface_or_category : Error<
+  "directive may only be specified in an interface or category">;
 def err_missing_catch_finally : Error<
   "@try statement without a @catch and @finally clause">;
 def err_objc_concat_string : Error<"unexpected token after Objective-C string">;

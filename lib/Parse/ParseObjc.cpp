@@ -500,7 +500,19 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
       else
         MethodImplKind = DirectiveKind;
       break;
-
+    case tok::objc_new:
+      // This is only valid on interfaces.
+      if (!getLangOpts().Logos)
+        Diag(AtLoc, diag::err_objc_new_requires_logos);
+      
+      if (contextKey == tok::objc_interface
+          || isa<ObjCCategoryDecl>(CDecl)) {
+        MethodImplKind = DirectiveKind; 
+      }else{
+        Diag(AtLoc, diag::err_objc_directive_only_in_interface_or_category);
+      }
+      
+      break;
     case tok::objc_property:
       if (!getLangOpts().ObjC2)
         Diag(AtLoc, diag::err_objc_properties_require_objc2);

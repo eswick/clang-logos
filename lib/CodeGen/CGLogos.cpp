@@ -193,6 +193,44 @@ void CodeGenFunction::EmitMessageHook(llvm::CallInst *_class,
   
 }
 
+void CodeGenFunction::EmitNewMethod(llvm::CallInst *_class,
+                                    llvm::Value *selector,
+                                    llvm::Function *impl,
+                                    ObjCMethodDecl *OMD) {
+
+    // Generate string constant for method type encoding
+    std::string TypeStr;
+    getContext().getObjCEncodingForMethodDecl(OMD, TypeStr);
+    
+    llvm::Constant *typeEncoding = CGM.GetAddrOfConstantCString(TypeStr);
+    
+    
+    // BOOL class_addMethod(Class cls, SEL name, IMP imp, const char *types)
+    llvm::Type *classAddMethodArgTypes[] = { Int8PtrTy, Int8PtrTy, 
+                                             Int8PtrTy, Int8PtrTy };
+        
+    llvm::FunctionType *classAddMethodType = llvm::FunctionType::get(
+                                                        Builder.getVoidTy(),
+                                                        classAddMethodArgTypes,
+                                                        false);
+                                                        
+    llvm::Constant *classAddMethodFn = CGM.CreateRuntimeFunction(
+                                                            classAddMethodType,
+                                                            "class_addMethod");
+                                                            
+    if (llvm::Function *f = dyn_cast<llvm::Function>(classAddMethodFn)) {
+      f->setLinkage(llvm::Function::ExternalWeakLinkage);
+    }
+    
+    llvm::Value *classAddMethodArgs[4];
+    classAddMethodArgs[0] = Builder.CreateBitCast(_class, Int8PtrTy);
+    classAddMethodArgs[1] = Builder.CreateBitCast(selector, Int8PtrTy);
+    classAddMethodArgs[2] = Builder.CreateBitCast(impl, Int8PtrTy);
+    classAddMethodArgs[3] = Builder.CreateBitCast(typeEncoding, Int8PtrTy);
+    
+    EmitRuntimeCallOrInvoke(classAddMethodFn, classAddMethodArgs);
+}
+
 /// Generates the constructor for an ObjCHookDecl
 ///
 /// This method generates a constructor that calls MSHookMessageEx for each
@@ -213,6 +251,22 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
     
                                 
     llvm::Value *selector = CGM.getObjCRuntime().GetSelector(*this, OMD);
+    
+    // Get the method definition, check for @new
+    ObjCMethodDecl *mDecl;
+    ObjCInterfaceDecl *CDecl = OHD->getClassInterface();
+    
+    if (CDecl) {
+      if ((mDecl = CDecl->lookupMethod(OMD->getSelector(),
+                                       OMD->isInstanceMethod()))) {
+        if (mDecl->getImplementationControl() == ObjCMethodDecl::New) {
+          EmitNewMethod(clazz, selector, 
+                        OHD->GetMethodDefinition(OMD), OMD);
+        
+          continue;
+        }
+      }
+    }
     
     EmitMessageHook(clazz, selector, 
                     OHD->GetMethodDefinition(OMD),

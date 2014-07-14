@@ -592,6 +592,7 @@ OBJC2_AT_KEYWORD(import)
 
 OBJC_LOGOS_KEYWORD(hook)
 OBJC_LOGOS_KEYWORD(orig)
+OBJC_LOGOS_KEYWORD(new)
 
 // TODO: What to do about context-sensitive keywords like:
 //       bycopy/byref/in/inout/oneway/out?

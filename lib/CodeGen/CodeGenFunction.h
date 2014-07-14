@@ -1095,6 +1095,10 @@ public:
                        llvm::Value *message, 
                        llvm::Function* hook, 
                        llvm::Value *old);
+  void EmitNewMethod(llvm::CallInst *_class,
+                     llvm::Value *selector,
+                     llvm::Function *impl,
+                     ObjCMethodDecl *OMD);
                        
   void GenerateHookConstructor(ObjCHookDecl *OHD);
 

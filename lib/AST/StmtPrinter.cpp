@@ -1876,6 +1876,12 @@ void StmtPrinter::VisitObjCDictionaryLiteral(ObjCDictionaryLiteral *E) {
   OS << " }";
 }
 
+void StmtPrinter::VisitObjCOrigExpr(ObjCOrigExpr *Node) {
+  OS << "@orig(";
+  // TODO: Print arguments
+  OS << ')';
+}
+
 void StmtPrinter::VisitObjCEncodeExpr(ObjCEncodeExpr *Node) {
   OS << "@encode(";
   Node->getEncodedType().print(OS, Policy);

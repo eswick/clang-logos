@@ -929,6 +929,50 @@ ExprResult Sema::BuildObjCDictionaryLiteral(SourceRange SR,
       DictionaryWithObjectsMethod, SR));
 }
 
+ExprResult Sema::BuildObjCOrigExpression(SourceLocation AtLoc,
+                                         ArrayRef<Expr *> Args,
+                                         SourceLocation RParenLoc) {
+
+  ObjCMethodDecl *Method = getCurMethodDecl();
+  
+  if (!Method) {
+    Diag(AtLoc, diag::err_invalid_receiver_to_orig);
+    return ExprError();
+  }
+  
+  // Make sure we're inside an @hook
+  if (!isa<ObjCHookDecl>(Method->getDeclContext())) {
+    Diag(AtLoc, diag::err_orig_outside_hook);
+    return ExprError();
+  }
+
+  // Check number of arguments
+  // TODO: Check argument types and improve diagnostics
+  
+  unsigned NumNamedArgs = Method->getSelector().getNumArgs();
+  
+  
+  if (Args.size() < NumNamedArgs) {
+    Diag(AtLoc, diag::err_typecheck_call_too_few_args)
+      << 2 << NumNamedArgs << static_cast<unsigned>(Args.size());
+    return ExprError();
+  }else if (Args.size() > NumNamedArgs) {
+    Diag(AtLoc, diag::err_typecheck_call_too_many_args)
+      << 2 << NumNamedArgs << static_cast<unsigned>(Args.size());
+    return ExprError();
+  }
+  
+  unsigned Size = sizeof(ObjCOrigExpr) + sizeof(void *) + 
+                  Args.size() * sizeof(Expr *);
+
+  ObjCOrigExpr *Mem;
+  Mem = (ObjCOrigExpr *)Context.Allocate(Size,
+                                         llvm::AlignOf<ObjCOrigExpr>::Alignment);
+  
+  
+  return new (Mem) ObjCOrigExpr(Method, Args, AtLoc, RParenLoc);
+}
+
 ExprResult Sema::BuildObjCEncodeExpression(SourceLocation AtLoc,
                                       TypeSourceInfo *EncodedTypeInfo,
                                       SourceLocation RParenLoc) {

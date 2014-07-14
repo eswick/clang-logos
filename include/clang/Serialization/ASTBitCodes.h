@@ -1223,6 +1223,8 @@ namespace clang {
       EXPR_OBJC_KVC_REF_EXPR,
       /// \brief An ObjCMessageExpr record.
       EXPR_OBJC_MESSAGE_EXPR,
+      /// \brief An ObjCOrigExpr record.
+      EXPR_OBJC_ORIG_EXPR,
       /// \brief An ObjCIsa Expr record.
       EXPR_OBJC_ISA,
       /// \brief An ObjCIndirectCopyRestoreExpr record.

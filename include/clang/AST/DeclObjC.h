@@ -22,6 +22,7 @@
 
 namespace llvm {
   class Function;
+  class GlobalVariable;
 }
 
 namespace clang {
@@ -1973,6 +1974,9 @@ class ObjCHookDecl : public ObjCImplDecl {
   /// this hook.
   llvm::DenseMap<const ObjCMethodDecl*, llvm::Function*> MethodDefinitions;
   
+  /// OrigPointers - map of hooked methods to their original implementations
+  llvm::DenseMap<const ObjCMethodDecl*, llvm::GlobalVariable*> OrigPointers;
+  
   ObjCHookDecl(DeclContext *DC,
                ObjCInterfaceDecl *classInterface,
                SourceLocation nameLoc, SourceLocation atStartLoc)
@@ -1985,6 +1989,9 @@ public:
                           
   void RegisterMethodDefinition(const ObjCMethodDecl *OMD, llvm::Function *Fn);
   llvm::Function *GetMethodDefinition(const ObjCMethodDecl *OMD);
+  
+  void RegisterOrigPointer(const ObjCMethodDecl *OMD, llvm::GlobalVariable *Gv);
+  llvm::GlobalVariable *GetOrigPointer(const ObjCMethodDecl *OMD);
                               
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == ObjCHook; }

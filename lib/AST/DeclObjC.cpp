@@ -1756,6 +1756,19 @@ llvm::Function *ObjCHookDecl::GetMethodDefinition(const ObjCMethodDecl *OMD) {
   return NULL;
 }
 
+void ObjCHookDecl::RegisterOrigPointer(const ObjCMethodDecl *OMD, llvm::GlobalVariable *Gv) {
+  OrigPointers.insert(std::make_pair(OMD, Gv));
+}
+
+llvm::GlobalVariable * ObjCHookDecl::GetOrigPointer(const ObjCMethodDecl *OMD) {
+  llvm::DenseMap<const ObjCMethodDecl*, llvm::GlobalVariable*>::iterator
+      I = OrigPointers.find(OMD);
+  if (I != OrigPointers.end())
+    return I->second;
+
+  return NULL;
+}
+
 //===----------------------------------------------------------------------===//
 // ObjCCompatibleAliasDecl
 //===----------------------------------------------------------------------===//

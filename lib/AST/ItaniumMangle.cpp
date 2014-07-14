@@ -2567,6 +2567,7 @@ recurse:
   case Expr::ObjCIsaExprClass:
   case Expr::ObjCIvarRefExprClass:
   case Expr::ObjCMessageExprClass:
+  case Expr::ObjCOrigExprClass:
   case Expr::ObjCPropertyRefExprClass:
   case Expr::ObjCProtocolExprClass:
   case Expr::ObjCSelectorExprClass:

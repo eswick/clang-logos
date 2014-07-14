@@ -4782,6 +4782,10 @@ def error_root_class_cannot_use_super : Error<
   "%0 cannot use 'super' because it is a root class">;
 def err_invalid_receiver_to_message_super : Error<
   "'super' is only valid in a method body">;
+def err_invalid_receiver_to_orig : Error<
+  "@orig is only valid in a method body">;
+def err_orig_outside_hook : Error<
+  "@orig is only valid in an @hook">;
 def err_invalid_receiver_class_message : Error<
   "receiver type %0 is not an Objective-C class">;
 def err_missing_open_square_message_send : Error<

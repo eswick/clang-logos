@@ -960,6 +960,13 @@ void ASTStmtReader::VisitObjCDictionaryLiteral(ObjCDictionaryLiteral *E) {
   E->Range = ReadSourceRange(Record, Idx);
 }
 
+void ASTStmtReader::VisitObjCOrigExpr(ObjCOrigExpr *E) {
+  VisitExpr(E);
+  E->setAtLoc(ReadSourceLocation(Record, Idx));
+  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+  // FIXME: What about Args?
+}
+
 void ASTStmtReader::VisitObjCEncodeExpr(ObjCEncodeExpr *E) {
   VisitExpr(E);
   E->setEncodedTypeSourceInfo(GetTypeSourceInfo(Record, Idx));
@@ -2177,6 +2184,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                                      Record[ASTStmtReader::NumExprFields],
                                      Record[ASTStmtReader::NumExprFields + 1]);
       break;
+    case EXPR_OBJC_ORIG_EXPR:
+      S = new (Context) ObjCOrigExpr(Empty);
     case EXPR_OBJC_ISA:
       S = new (Context) ObjCIsaExpr(Empty);
       break;

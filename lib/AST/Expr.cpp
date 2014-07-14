@@ -2986,6 +2986,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx) const {
   case ObjCIndirectCopyRestoreExprClass:
   case ObjCSubscriptRefExprClass:
   case ObjCBridgedCastExprClass:
+  case ObjCOrigExprClass:
     // FIXME: Classify these cases better.
     return true;
   }
@@ -3324,6 +3325,40 @@ void ExtVectorElementExpr::getEncodedElementAccess(
 
     Elts.push_back(Index);
   }
+}
+
+ObjCOrigExpr::ObjCOrigExpr(ObjCMethodDecl *OMD, ArrayRef<Expr *> Args, SourceLocation at, SourceLocation rp) : 
+       Expr(ObjCOrigExprClass, OMD->getResultType(), VK_RValue, OK_Ordinary,
+            OMD->getResultTypeSourceInfo()->getType()->isDependentType(),
+            OMD->getResultTypeSourceInfo()->getType()->isDependentType(),
+            OMD->getResultTypeSourceInfo()->getType()->isInstantiationDependentType(),
+            OMD->getResultTypeSourceInfo()->getType()->containsUnexpandedParameterPack()),
+
+  AtLoc(at), RParenLoc(rp), OMD(OMD) {
+    setNumArgs(Args.size());
+    Expr **MyArgs = getArgs();
+    for (unsigned I = 0; I != Args.size(); ++I) {
+      if (Args[I]->isTypeDependent())
+        ExprBits.TypeDependent = true;
+      if (Args[I]->isValueDependent())
+        ExprBits.ValueDependent = true;
+      if (Args[I]->isInstantiationDependent())
+        ExprBits.InstantiationDependent = true;
+      if (Args[I]->containsUnexpandedParameterPack())
+        ExprBits.ContainsUnexpandedParameterPack = true;
+    
+      MyArgs[I] = Args[I];
+    }
+}
+
+// ObjCMessageExpr
+Stmt::child_range ObjCOrigExpr::children() {
+  Stmt **begin;
+
+  begin = reinterpret_cast<Stmt **>(getArgs());
+  
+  return child_range(begin,
+                     reinterpret_cast<Stmt **>(getArgs() + getNumArgs()));
 }
 
 ObjCMessageExpr::ObjCMessageExpr(QualType T,

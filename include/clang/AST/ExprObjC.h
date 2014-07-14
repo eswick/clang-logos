@@ -340,6 +340,89 @@ public:
   friend class ASTStmtWriter;
 };
 
+/// ObjCOrigExpr, used for \@orig in ObjC-Logos. \@orig has the same
+/// type as the return type of the Objective-C method it is used in.
+class ObjCOrigExpr : public Expr {
+  
+  enum { NumArgsBitWidth = 16 };
+
+  /// \brief The number of arguments in the message send, not
+  /// including the receiver.
+  unsigned NumArgs : NumArgsBitWidth;
+  
+  void setNumArgs(unsigned Num) {
+    assert((Num >> NumArgsBitWidth) == 0 && "Num of args is out of range!");
+    NumArgs = Num;
+  }
+  
+  SourceLocation AtLoc, RParenLoc;
+  ObjCMethodDecl *OMD;
+  
+public:
+  ObjCOrigExpr(ObjCMethodDecl *OMD, ArrayRef<Expr *> Args, 
+               SourceLocation at, SourceLocation rp);
+      
+  explicit ObjCOrigExpr(EmptyShell Empty) : Expr(ObjCOrigExprClass, Empty){}
+    
+    
+  SourceLocation getAtLoc() const { return AtLoc; }
+  void setAtLoc(SourceLocation L) { AtLoc = L; }
+  SourceLocation getRParenLoc() const { return RParenLoc; }
+  void setRParenLoc(SourceLocation L) { RParenLoc = L; }
+  
+  /// \brief Return the number of arguments
+  unsigned getNumArgs() const { return NumArgs; }
+
+  /// \brief Retrieve the arguments to this message, not including the
+  /// receiver.
+  Expr **getArgs() {
+    return reinterpret_cast<Expr **>(this + 1) + 1;
+  }
+  const Expr * const *getArgs() const {
+    return reinterpret_cast<const Expr * const *>(this + 1) + 1;
+  }
+
+  /// getArg - Return the specified argument.
+  Expr *getArg(unsigned Arg) {
+    assert(Arg < NumArgs && "Arg access out of range!");
+    return cast<Expr>(getArgs()[Arg]);
+  }
+  const Expr *getArg(unsigned Arg) const {
+    assert(Arg < NumArgs && "Arg access out of range!");
+    return cast<Expr>(getArgs()[Arg]);
+  }
+  /// setArg - Set the specified argument.
+  void setArg(unsigned Arg, Expr *ArgExpr) {
+    assert(Arg < NumArgs && "Arg access out of range!");
+    getArgs()[Arg] = ArgExpr;
+  }
+
+  child_range children();
+
+  typedef ExprIterator arg_iterator;
+  typedef ConstExprIterator const_arg_iterator;
+
+  arg_iterator arg_begin() { return reinterpret_cast<Stmt **>(getArgs()); }
+  arg_iterator arg_end()   { 
+    return reinterpret_cast<Stmt **>(getArgs() + NumArgs); 
+  }
+  const_arg_iterator arg_begin() const { 
+    return reinterpret_cast<Stmt const * const*>(getArgs()); 
+  }
+  const_arg_iterator arg_end() const { 
+    return reinterpret_cast<Stmt const * const*>(getArgs() + NumArgs); 
+  }
+  
+  SourceLocation getLocStart() const LLVM_READONLY { return AtLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
+  
+  ObjCMethodDecl *getParentMethod() const LLVM_READONLY { return OMD; }
+  
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == ObjCOrigExprClass;
+  }
+};
+
 
 /// ObjCEncodeExpr, used for \@encode in Objective-C.  \@encode has the same
 /// type and behavior as StringLiteral except that the string initializer is

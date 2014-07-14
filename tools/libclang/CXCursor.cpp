@@ -414,6 +414,10 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::ObjCSelectorExprClass:
     K = CXCursor_ObjCSelectorExpr;
     break;
+    
+  case Stmt::ObjCOrigExprClass:
+    K = CXCursor_ObjCOrigExpr;
+    break;
 
   case Stmt::ObjCProtocolExprClass:
     K = CXCursor_ObjCProtocolExpr;

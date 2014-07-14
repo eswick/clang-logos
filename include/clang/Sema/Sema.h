@@ -4613,6 +4613,10 @@ public:
   ExprResult BuildObjCDictionaryLiteral(SourceRange SR,
                                         ObjCDictionaryElement *Elements,
                                         unsigned NumElements);
+                                        
+  ExprResult BuildObjCOrigExpression(SourceLocation AtLoc,
+                                     ArrayRef<Expr *> Args,
+                                     SourceLocation RParenLoc);
 
   ExprResult BuildObjCEncodeExpression(SourceLocation AtLoc,
                                   TypeSourceInfo *EncodedTypeInfo,

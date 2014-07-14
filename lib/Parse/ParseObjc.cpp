@@ -2210,6 +2210,8 @@ ExprResult Parser::ParseObjCAtExpression(SourceLocation AtLoc) {
       return ParsePostfixExpressionSuffix(ParseObjCProtocolExpression(AtLoc));
     case tok::objc_selector:
       return ParsePostfixExpressionSuffix(ParseObjCSelectorExpression(AtLoc));
+    case tok::objc_orig:
+      return ParseObjCOrigExpression(AtLoc);
       default: {
         const char *str = 0;
         if (GetLookAheadToken(1).is(tok::l_brace)) {
@@ -2839,6 +2841,38 @@ ExprResult Parser::ParseObjCDictionaryLiteral(SourceLocation AtLoc) {
   // Create the ObjCDictionaryLiteral.
   return Actions.BuildObjCDictionaryLiteral(SourceRange(AtLoc, EndLoc),
                                             Elements.data(), Elements.size());
+}
+
+///    objc-logos-orig-expression
+///      \@orig ( args )
+ExprResult
+Parser::ParseObjCOrigExpression(SourceLocation AtLoc) {
+  assert(Tok.isObjCAtKeyword(tok::objc_orig) && "Not an @orig expression!");
+  
+  SourceLocation OrigLoc = ConsumeToken(); // the 'orig' token
+  
+  // Throw error if no parentheses follow
+  // TODO: Call @orig with original function arguments if no parenthesis present.
+  if (Tok.isNot(tok::l_paren))
+    return ExprError(Diag(Tok, diag::err_expected_lparen_after) << "@orig");
+  
+  ExprVector ArgExprs;
+  CommaLocsTy CommaLocs;
+  
+  
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  T.consumeOpen();
+  
+  if (Tok.isNot(tok::r_paren)) {
+    if (ParseExpressionList(ArgExprs, CommaLocs, &Sema::CodeCompleteCall)) {
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return ExprError();
+    }
+  }
+  
+  T.consumeClose();
+  
+  return Actions.BuildObjCOrigExpression(OrigLoc, ArgExprs, T.getCloseLocation());
 }
 
 ///    objc-encode-expression:

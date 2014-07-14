@@ -20,12 +20,12 @@
 using namespace clang;
 using namespace CodeGen;
 
-/// Create the mangled logos name for a hooked method decl.
+/// Create a mangled logos name for a hooked method
 ///
-/// logos_method$<class>$<selector>
+/// <prefix>$<class>$<selector>
 ///
 /// Semicolons (:) in selector are replaced with '$'
-static void GetMangledNameForLogosMethod(const ObjCMethodDecl *D, SmallVectorImpl<char> &Name) {
+static void GetMangledNameForLogosMethod(std::string prefix, const ObjCMethodDecl *D, SmallVectorImpl<char> &Name) {
     llvm::raw_svector_ostream OS(Name);
     
     std::string sel = D->getSelector().getAsString();
@@ -33,7 +33,7 @@ static void GetMangledNameForLogosMethod(const ObjCMethodDecl *D, SmallVectorImp
     std::replace(sel.begin(), sel.end(), ':', '$');
     
     
-    OS << "logos_method$" << D->getClassInterface()->getName() << "$" << sel;
+    OS << prefix << "$" << D->getClassInterface()->getName() << "$" << sel;
     
 }
 
@@ -45,8 +45,27 @@ static void GetMangledNameForLogosMethod(const ObjCMethodDecl *D, SmallVectorImp
 
 void CodeGenFunction::GenerateLogosMethodHook(const ObjCMethodDecl *OMD, ObjCHookDecl *Hook) {
     
+    // Generate function pointer for @orig
+    SmallString <256> OrigName;
+    GetMangledNameForLogosMethod("logos_orig", OMD, OrigName);
+    
+    llvm::GlobalVariable *Orig;
+    
+    Orig = new llvm::GlobalVariable(
+      CGM.getModule(),
+      Int8PtrTy,
+      false,
+      llvm::GlobalValue::InternalLinkage,
+      CGM.EmitNullConstant(getContext().VoidPtrTy),
+      OrigName.str());
+      
+    Hook->RegisterOrigPointer(OMD, Orig);
+      
+      
+    // Generate function
+    
     SmallString<256> Name;
-    GetMangledNameForLogosMethod(OMD, Name);
+    GetMangledNameForLogosMethod("logos_method", OMD, Name);
     
     // Set up LLVM types
     CodeGenTypes &Types = getTypes();
@@ -196,13 +215,47 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
     llvm::Value *selector = CGM.getObjCRuntime().GetSelector(*this, OMD);
     
     EmitMessageHook(clazz, selector, 
-                    OHD->GetMethodDefinition(OMD), 
-                    // TODO: Store old somewhere for use by @orig
-                    CGM.EmitNullConstant(getContext().VoidPtrTy));    
+                    OHD->GetMethodDefinition(OMD),
+                    OHD->GetOrigPointer(OMD));    
   }
   
   FinishFunction(SourceLocation());
   
   CGM.AddGlobalCtor(Fn);
   
+}
+
+/// Emits an @orig expression
+llvm::Value* CodeGenFunction::EmitObjCOrigExpr(const ObjCOrigExpr *E) {
+  CGObjCRuntime &Runtime = CGM.getObjCRuntime();
+  
+  ObjCMethodDecl *OMD = E->getParentMethod();
+  
+  CallArgList Args;
+  
+  Args.add(RValue::get(LoadObjCSelf()), getContext().getObjCIdType());
+  Args.add(RValue::get(Runtime.GetSelector(*this, 
+                                            OMD->getSelector())), 
+                       getContext().getObjCSelType());
+  
+  
+  EmitCallArgs(Args, OMD, E->arg_begin(), E->arg_end());
+  
+  // Even though getMessageSendInfo is meant for objc_msgSend, it works
+  // just as well for calling the original implementation directly.
+  CGObjCRuntime::MessageSendInfo MSI = 
+              Runtime.getMessageSendInfo(OMD, 
+                                         OMD->getResultType(), 
+                                         Args);
+  
+  assert(isa<ObjCHookDecl>(OMD->getDeclContext()) && "@orig outside of @hook");
+  
+  // Load and call the original implementation
+  ObjCHookDecl *OHD = cast<ObjCHookDecl>(OMD->getDeclContext());
+  llvm::Value *Fn = Builder.CreateLoad(OHD->GetOrigPointer(OMD));
+  Fn = Builder.CreateBitCast(Fn, MSI.MessengerType);
+  
+  RValue rvalue = EmitCall(MSI.CallInfo, Fn, ReturnValueSlot(), Args);
+  
+  return rvalue.getScalarVal();
 }

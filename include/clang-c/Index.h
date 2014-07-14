@@ -2113,7 +2113,10 @@ enum CXCursorKind {
    */
   CXCursor_ModuleImportDecl              = 600,
   CXCursor_FirstExtraDecl                = CXCursor_ModuleImportDecl,
-  CXCursor_LastExtraDecl                 = CXCursor_ModuleImportDecl
+  CXCursor_LastExtraDecl                 = CXCursor_ModuleImportDecl,
+  
+  CXCursor_ObjCOrigExpr                  = 601 /* FIXME: This doesn't belong
+                                                         here. */
 };
 
 /**
@@ -5840,4 +5843,3 @@ CXSourceLocation clang_indexLoc_getCXSourceLocation(CXIdxLoc loc);
 }
 #endif
 #endif
-

@@ -1187,6 +1187,15 @@ public:
                                               const CallArgList &CallArgs,
                                               const ObjCInterfaceDecl *Class,
                                               const ObjCMethodDecl *Method);
+  
+  virtual CodeGen::RValue GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
+                                              ReturnValueSlot ReturnSlot,
+                                              QualType ResultType,
+                                              llvm::Value *Sel,
+                                              llvm::Value *Receiver,
+                                              const CallArgList &CallArgs,
+                                              const ObjCInterfaceDecl *Class,
+                                              const ObjCMethodDecl *Method);
 
   virtual CodeGen::RValue
   GenerateMessageSendSuper(CodeGen::CodeGenFunction &CGF,
@@ -1461,6 +1470,15 @@ public:
                                               ReturnValueSlot Return,
                                               QualType ResultType,
                                               Selector Sel,
+                                              llvm::Value *Receiver,
+                                              const CallArgList &CallArgs,
+                                              const ObjCInterfaceDecl *Class,
+                                              const ObjCMethodDecl *Method);
+                                              
+  virtual CodeGen::RValue GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
+                                              ReturnValueSlot ReturnSlot,
+                                              QualType ResultType,
+                                              llvm::Value *Sel,
                                               llvm::Value *Receiver,
                                               const CallArgList &CallArgs,
                                               const ObjCInterfaceDecl *Class,
@@ -1852,6 +1870,20 @@ CodeGen::RValue CGObjCMac::GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
                                                const ObjCMethodDecl *Method) {
   return EmitMessageSend(CGF, Return, ResultType,
                          EmitSelector(CGF, Sel),
+                         Receiver, CGF.getContext().getObjCIdType(),
+                         false, CallArgs, Method, ObjCTypes);
+}
+
+CodeGen::RValue CGObjCMac::GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
+                                               ReturnValueSlot Return,
+                                               QualType ResultType,
+                                               llvm::Value *Sel,
+                                               llvm::Value *Receiver,
+                                               const CallArgList &CallArgs,
+                                               const ObjCInterfaceDecl *Class,
+                                               const ObjCMethodDecl *Method) {
+  return EmitMessageSend(CGF, Return, ResultType,
+                         Sel,
                          Receiver, CGF.getContext().getObjCIdType(),
                          false, CallArgs, Method, ObjCTypes);
 }
@@ -6649,6 +6681,21 @@ CGObjCNonFragileABIMac::GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
                       EmitSelector(CGF, Sel),
                       Receiver, CGF.getContext().getObjCIdType(),
                       false, CallArgs, Method, ObjCTypes);
+}
+
+CodeGen::RValue 
+CGObjCNonFragileABIMac::GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
+                                            ReturnValueSlot Return,
+                                            QualType ResultType,
+                                            llvm::Value *Sel,
+                                            llvm::Value *Receiver,
+                                            const CallArgList &CallArgs,
+                                            const ObjCInterfaceDecl *Class,
+                                            const ObjCMethodDecl *Method) {
+  return EmitMessageSend(CGF, Return, ResultType,
+                         Sel,
+                         Receiver, CGF.getContext().getObjCIdType(),
+                         false, CallArgs, Method, ObjCTypes);
 }
 
 llvm::GlobalVariable *

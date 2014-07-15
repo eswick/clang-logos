@@ -215,6 +215,29 @@ void CodeGenFunction::GenerateObjCGetter(ObjCHookDecl *Hook,
     llvm::Value *ret = EmitNounwindRuntimeCall(objc_getAssociatedObjectFn, 
                                                objc_getAssociatedObjectArgs);
     
+    if (!PID->getPropertyDecl()->getType()->isObjCRetainableType()) {
+      // We have a scalar data type wrapped in an NSValue; unwrap it
+      llvm::Value *unwrapped = CreateTempAlloca(getTypes().ConvertType(
+        PID->getPropertyDecl()->getType()));
+        
+      CallArgList args;
+      
+      args.add(RValue::get(unwrapped),
+                           getContext().getPointerType(
+                           PID->getPropertyDecl()->getType()
+                           ));
+      
+      // FIXME: The selector could be cached for speed
+      llvm::Value* selector = EmitSelRegisterName("getValue:");
+      
+      CGM.getObjCRuntime().GenerateMessageSend(*this, ReturnValueSlot(),
+                                               getContext().VoidTy, selector, 
+                                               ret, args);
+      
+      ret = Builder.CreateLoad(unwrapped);
+    }
+    
+    
     EmitReturnOfRValue(RValue::get(ret), PID->getPropertyDecl()->getType());
     
     FinishFunction();
@@ -288,8 +311,37 @@ void CodeGenFunction::GenerateObjCSetter(ObjCHookDecl *Hook,
   
   
   // Load the object being set (the first parameter)
-  llvm::Value* obj = Builder.CreateLoad(
-                                      GetAddrOfLocalVar(*(OMD->param_begin())));
+  
+  llvm::Value* obj;
+  
+  if (!PID->getPropertyDecl()->getType()->isObjCRetainableType()) {
+    // We have a scalar value; wrap in NSValue
+    
+    CallArgList args;
+    
+    args.add(RValue::get(GetAddrOfLocalVar(*(OMD->param_begin()))),
+                         getContext().getPointerType(*(OMD->arg_type_begin())));
+  
+    std::string TypeStr;
+    getContext().getObjCEncodingForType(*(OMD->arg_type_begin()), TypeStr);
+    
+    llvm::Constant *typeEncoding = CGM.GetAddrOfConstantCString(TypeStr);
+  
+    args.add(RValue::get(typeEncoding), getContext().VoidPtrTy);
+    
+    // FIXME: The class and selector could be cached for speed
+    llvm::Value* selector = EmitSelRegisterName("value:withObjCType:");
+    llvm::Value* clazz = EmitGetClassRuntimeCall("NSValue");
+    
+    obj = CGM.getObjCRuntime().GenerateMessageSend(*this, ReturnValueSlot(),
+                                                   getContext().getObjCIdType(),
+                                                   selector, clazz, args)
+                                                   .getScalarVal();
+     
+  }else{
+    obj = Builder.CreateLoad(GetAddrOfLocalVar(*(OMD->param_begin())));
+  }
+  
                                       
   llvm::APInt kindInt;
   kindInt = CalculateAssociationPolicy(PID->getPropertyDecl());
@@ -350,6 +402,31 @@ llvm::Function* CodeGenFunction::StartLogosConstructor() {
   EmitFunctionProlog(*CurFnInfo, Fn, args);
   
   return Fn;
+}
+
+llvm::CallInst *CodeGenFunction::EmitSelRegisterName(std::string selector) {
+  llvm::Type *sel_registerNameArgTypes[] = { Int8PtrTy };
+  llvm::FunctionType *sel_registerNameType = llvm::FunctionType::get(
+                                                       Int8PtrTy, 
+                                                       sel_registerNameArgTypes, 
+                                                       false);
+    
+  llvm::Constant *sel_registerNameFn = CGM.CreateRuntimeFunction(
+                                                          sel_registerNameType, 
+                                                          "sel_registerName");
+    
+  if (llvm::Function *f = dyn_cast<llvm::Function>(sel_registerNameFn)) {
+      f->setLinkage(llvm::Function::ExternalWeakLinkage);
+  }
+    
+  llvm::Constant *selectorString = CGM.GetAddrOfConstantCString(selector);
+    
+  llvm::Value *sel_registerNameArgs[1];
+  sel_registerNameArgs[0] = llvm::ConstantExpr::getBitCast(selectorString,
+                                                           Int8PtrTy);
+    
+    
+  return EmitNounwindRuntimeCall(sel_registerNameFn, sel_registerNameArgs);
 }
 
 /// Generates a call to objc_getClass and returns the result.

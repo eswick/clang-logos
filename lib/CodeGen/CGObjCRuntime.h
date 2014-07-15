@@ -158,6 +158,18 @@ public:
                       const CallArgList &CallArgs,
                       const ObjCInterfaceDecl *Class = 0,
                       const ObjCMethodDecl *Method = 0) = 0;
+                      
+  virtual CodeGen::RValue
+  GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
+                      ReturnValueSlot ReturnSlot,
+                      QualType ResultType,
+                      llvm::Value *Sel,
+                      llvm::Value *Receiver,
+                      const CallArgList &CallArgs,
+                      const ObjCInterfaceDecl *Class = 0,
+                      const ObjCMethodDecl *Method = 0) { 
+    llvm_unreachable("runtime doesn't support direct selectors"); 
+  };
 
   /// Generate an Objective-C message send operation to the super
   /// class initiated in a method for Class and with the given Self

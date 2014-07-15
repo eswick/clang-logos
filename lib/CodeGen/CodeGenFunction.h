@@ -1100,6 +1100,7 @@ public:
   
   llvm::Function* StartLogosConstructor();
   llvm::CallInst* EmitGetClassRuntimeCall(std::string ClassName);
+  llvm::CallInst* EmitSelRegisterName(std::string selector);
   void EmitMessageHook(llvm::CallInst *_class, 
                        llvm::Value *message, 
                        llvm::Function* hook, 

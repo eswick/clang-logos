@@ -1976,6 +1976,11 @@ class ObjCHookDecl : public ObjCImplDecl {
   
   /// OrigPointers - map of hooked methods to their original implementations
   llvm::DenseMap<const ObjCMethodDecl*, llvm::GlobalVariable*> OrigPointers;
+
+  /// PropertyKeys - map of property decls to their unique key for ObjC
+  /// associated objects
+  llvm::DenseMap<const ObjCPropertyImplDecl*, llvm::GlobalVariable*> 
+                                                                  PropertyKeys;
   
   ObjCHookDecl(DeclContext *DC,
                ObjCInterfaceDecl *classInterface,
@@ -1992,6 +1997,10 @@ public:
   
   void RegisterOrigPointer(const ObjCMethodDecl *OMD, llvm::GlobalVariable *Gv);
   llvm::GlobalVariable *GetOrigPointer(const ObjCMethodDecl *OMD);
+                              
+  void RegisterPropertyKey(const ObjCPropertyImplDecl *OPD, 
+                                 llvm::GlobalVariable *Gv);
+  llvm::GlobalVariable *GetPropertyKey(const ObjCPropertyImplDecl *OPD);                    
                               
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == ObjCHook; }

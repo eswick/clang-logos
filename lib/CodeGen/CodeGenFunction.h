@@ -1088,6 +1088,15 @@ public:
   
   void GenerateLogosMethodHook(const ObjCMethodDecl *OMD, ObjCHookDecl *Hook);
   
+  /// GenerateObjCGetter - Synthesize an Objective-C property getter function.
+  void GenerateObjCGetter(ObjCHookDecl *Hook,
+                          const ObjCPropertyImplDecl *PID);
+                          
+  void GenerateObjCSetter(ObjCHookDecl *Hook,
+                          const ObjCPropertyImplDecl *PID);
+                    
+  llvm::GlobalVariable* GetPropertyKey(ObjCHookDecl *Hook,
+                                       const ObjCPropertyImplDecl *PID);
   
   llvm::Function* StartLogosConstructor();
   llvm::CallInst* EmitGetClassRuntimeCall(std::string ClassName);

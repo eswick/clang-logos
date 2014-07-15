@@ -1047,6 +1047,7 @@ private:
   void EmitGlobalVarDefinition(const VarDecl *D);
   void EmitAliasDefinition(GlobalDecl GD);
   void EmitObjCPropertyImplementations(const ObjCImplementationDecl *D);
+  void EmitObjCPropertyImplementations(const ObjCHookDecl *D);
   void EmitObjCIvarInitializations(ObjCImplementationDecl *D);
   
   // C++ related functions.

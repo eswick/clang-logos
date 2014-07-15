@@ -1769,6 +1769,21 @@ llvm::GlobalVariable * ObjCHookDecl::GetOrigPointer(const ObjCMethodDecl *OMD) {
   return NULL;
 }
 
+void ObjCHookDecl::RegisterPropertyKey(const ObjCPropertyImplDecl *OPD, 
+                                             llvm::GlobalVariable *Gv) {
+  PropertyKeys.insert(std::make_pair(OPD, Gv));                               
+}
+
+llvm::GlobalVariable * ObjCHookDecl::GetPropertyKey(
+                                              const ObjCPropertyImplDecl *OPD) {
+  llvm::DenseMap<const ObjCPropertyImplDecl*, llvm::GlobalVariable*>::iterator
+      I = PropertyKeys.find(OPD);
+  if (I != PropertyKeys.end())
+    return I->second;
+
+  return NULL;
+}
+
 //===----------------------------------------------------------------------===//
 // ObjCCompatibleAliasDecl
 //===----------------------------------------------------------------------===//

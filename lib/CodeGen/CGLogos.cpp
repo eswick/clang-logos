@@ -37,6 +37,30 @@ static void GetMangledNameForLogosMethod(std::string prefix, const ObjCMethodDec
     
 }
 
+static unsigned CalculateAssociationPolicy(ObjCPropertyDecl *D) {
+  unsigned baseValue;
+  
+  switch (D->getSetterKind()) {
+    case ObjCPropertyDecl::Assign:
+      return 0;
+    case ObjCPropertyDecl::Retain:
+      baseValue = 1;
+      break;
+    case ObjCPropertyDecl::Copy:
+      baseValue = 3;
+      break;
+    default:
+      assert(false && "Setter kind not supported");
+      return 0;
+  }
+  
+  if (D->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_nonatomic) {
+    baseValue += 01400;
+  }
+  
+  return baseValue;
+}
+
 
 /// Generate a Logos hook method
 ///
@@ -96,6 +120,200 @@ void CodeGenFunction::GenerateLogosMethodHook(const ObjCMethodDecl *OMD, ObjCHoo
     
     Hook->RegisterMethodDefinition(OMD, Fn);
     
+}
+
+/// \brief Creates a unique static variable for each property impl to be used
+/// as a key for objc_(get/set)AssociatedObject
+llvm::GlobalVariable* CodeGenFunction::GetPropertyKey(ObjCHookDecl *Hook,
+                                              const ObjCPropertyImplDecl *PID) {
+  
+  if (llvm::GlobalVariable *Key = Hook->GetPropertyKey(PID))
+    return Key;
+
+  SmallString <256> KeyName;
+  GetMangledNameForLogosMethod("logos_key", PID->getPropertyDecl()->
+                                              getGetterMethodDecl(), KeyName);
+                                              
+  llvm::GlobalVariable *Key;
+  
+  Key = new llvm::GlobalVariable(
+    CGM.getModule(),
+    Int8PtrTy,
+    false,
+    llvm::GlobalValue::InternalLinkage,
+    CGM.EmitNullConstant(getContext().VoidPtrTy),
+    KeyName.str());
+    
+  Hook->RegisterPropertyKey(PID, Key);
+  
+  return Key;
+}
+
+/// \brief Generates a property getter by using Objective-C associated objects 
+void CodeGenFunction::GenerateObjCGetter(ObjCHookDecl *Hook,
+                                         const ObjCPropertyImplDecl *PID) {
+    ObjCMethodDecl *OMD = PID->getPropertyDecl()->getGetterMethodDecl();
+    
+    // Get static key for property
+    llvm::GlobalVariable* Key = GetPropertyKey(Hook, PID);
+    
+    // Generate function start
+    
+    SmallString <256> SymbolName;
+    GetMangledNameForLogosMethod("logos_method", OMD, SymbolName);
+    
+    CodeGenTypes &Types = getTypes();
+    
+    llvm::FunctionType *MethodTy = Types.GetFunctionType(
+                                       Types.arrangeObjCMethodDeclaration(OMD));
+    llvm::Function *Fn = llvm::Function::Create(MethodTy, 
+                                             llvm::GlobalValue::InternalLinkage, 
+                                             SymbolName.str(), 
+                                             &CGM.getModule());
+    
+    const CGFunctionInfo &FI = Types.arrangeObjCMethodDeclaration(OMD);
+    CGM.SetInternalFunctionAttributes(OMD, Fn, FI);
+    
+    // Create function args (self, _cmd)
+    FunctionArgList args;
+    args.push_back(OMD->getSelfDecl());
+    args.push_back(OMD->getCmdDecl());
+    
+    CurGD = OMD;
+    
+    StartFunction(OMD, OMD->getResultType(), Fn, FI, args, PID->getLocStart());
+    
+    // Generate body
+    
+    // id objc_getAssociatedObject(id object, void *key)
+    llvm::Type *objc_getAssociatedObjectTypes[] = { Int8PtrTy, Int8PtrTy };
+    llvm::FunctionType *objc_getAssociatedObjectType = llvm::FunctionType::get(
+                                                  Int8PtrTy, 
+                                                  objc_getAssociatedObjectTypes, 
+                                                  false);
+      
+    llvm::Constant *objc_getAssociatedObjectFn = CGM.CreateRuntimeFunction(
+                                                  objc_getAssociatedObjectType, 
+                                                  "objc_getAssociatedObject");
+      
+    if (llvm::Function *f = 
+                         dyn_cast<llvm::Function>(objc_getAssociatedObjectFn)) {
+        f->setLinkage(llvm::Function::ExternalWeakLinkage);
+    }
+    
+    // Generate args for call to objc_getAssociatedObject
+    llvm::Value *objc_getAssociatedObjectArgs[2];
+    objc_getAssociatedObjectArgs[0] = Builder.CreateBitCast(
+                                        LoadObjCSelf(), 
+                                        Int8PtrTy);
+    
+    objc_getAssociatedObjectArgs[1] = llvm::ConstantExpr::getBitCast(
+                                                          Key, 
+                                                          Int8PtrTy);
+      
+      
+    llvm::Value *ret = EmitNounwindRuntimeCall(objc_getAssociatedObjectFn, 
+                                               objc_getAssociatedObjectArgs);
+    
+    EmitReturnOfRValue(RValue::get(ret), PID->getPropertyDecl()->getType());
+    
+    FinishFunction();
+    
+    Hook->RegisterMethodDefinition(OMD, Fn);
+}
+
+/// \brief Generates a property setter by using Objective-C associated objects 
+void CodeGenFunction::GenerateObjCSetter(ObjCHookDecl *Hook,
+                                         const ObjCPropertyImplDecl *PID) {
+  ObjCMethodDecl *OMD = PID->getPropertyDecl()->getSetterMethodDecl();
+  
+  // Get static key for property
+  llvm::GlobalVariable* Key = GetPropertyKey(Hook, PID);
+  
+  // Generate function start
+  
+  SmallString <256> SymbolName;
+  GetMangledNameForLogosMethod("logos_method", OMD, SymbolName);
+  
+  CodeGenTypes &Types = getTypes();
+  
+  llvm::FunctionType *MethodTy = Types.GetFunctionType(
+                                       Types.arrangeObjCMethodDeclaration(OMD));
+
+  llvm::Function *Fn = llvm::Function::Create(MethodTy, 
+                                            llvm::GlobalValue::InternalLinkage, 
+                                            SymbolName.str(), &CGM.getModule());
+  
+  const CGFunctionInfo &FI = Types.arrangeObjCMethodDeclaration(OMD);
+  CGM.SetInternalFunctionAttributes(OMD, Fn, FI);
+  
+  // Create function args (self, _cmd, ...)
+  FunctionArgList args;
+  args.push_back(OMD->getSelfDecl());
+  args.push_back(OMD->getCmdDecl());
+  
+  for (ObjCMethodDecl::param_const_iterator PI = OMD->param_begin(),
+       E = OMD->param_end(); PI != E; ++PI)
+  args.push_back(*PI);
+  
+  CurGD = OMD;
+  
+  StartFunction(OMD, OMD->getResultType(), Fn, FI, args, PID->getLocStart());
+  
+  // Generate body
+  
+  /* void objc_setAssociatedObject(id object, void *key, 
+                                 id value, objc_AssociationPolicy policy)*/
+  
+  // FIXME: objc_AssociationPolicy may not be Int32Ty on all platforms
+  llvm::Type *objc_setAssociatedObjectTypes[] = { Int8PtrTy, Int8PtrTy,
+                                                  Int8PtrTy, Int32Ty };
+
+  llvm::FunctionType *objc_setAssociatedObjectType = llvm::FunctionType::get(
+                                                Builder.getVoidTy(), 
+                                                objc_setAssociatedObjectTypes, 
+                                                false);
+    
+  llvm::Constant *objc_setAssociatedObjectFn = CGM.CreateRuntimeFunction(
+                                                objc_setAssociatedObjectType, 
+                                                "objc_setAssociatedObject");
+    
+  if (llvm::Function *f = 
+                       dyn_cast<llvm::Function>(objc_setAssociatedObjectFn)) {
+      f->setLinkage(llvm::Function::ExternalWeakLinkage);
+  }
+  
+  // Create args for call to objc_setAssociatedObject
+  llvm::Value *objc_setAssociatedObjectArgs[4];
+  
+  
+  // Load the object being set (the first parameter)
+  llvm::Value* obj = Builder.CreateLoad(
+                                      GetAddrOfLocalVar(*(OMD->param_begin())));
+                                      
+  llvm::APInt kindInt;
+  kindInt = CalculateAssociationPolicy(PID->getPropertyDecl());
+  llvm::Constant* assignmentKind = llvm::Constant::getIntegerValue(
+                                            Int32Ty,
+                                            kindInt);
+  
+  objc_setAssociatedObjectArgs[0] = Builder.CreateBitCast(
+                                        LoadObjCSelf(), 
+                                        Int8PtrTy);
+  objc_setAssociatedObjectArgs[1] = llvm::ConstantExpr::getBitCast(
+                                                        Key, 
+                                                        Int8PtrTy);
+  objc_setAssociatedObjectArgs[2] = Builder.CreateBitCast(
+                                    obj,
+                                    Int8PtrTy);
+  objc_setAssociatedObjectArgs[3] = assignmentKind;
+
+  EmitNounwindRuntimeCall(objc_setAssociatedObjectFn, 
+                                             objc_setAssociatedObjectArgs);
+  
+  FinishFunction();
+  
+  Hook->RegisterMethodDefinition(OMD, Fn);
 }
 
 // ====== Constructor Generation ====== //
@@ -242,6 +460,7 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
   llvm::CallInst *clazz = EmitGetClassRuntimeCall(
                               OHD->getClassInterface()->getNameAsString());
   
+  // Set up hooked and new methods
   for (ObjCContainerDecl::method_iterator M = OHD->meth_begin(),
        MEnd = OHD->meth_end();
        M != MEnd; ++M) {
@@ -270,7 +489,28 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
     
     EmitMessageHook(clazz, selector, 
                     OHD->GetMethodDefinition(OMD),
-                    OHD->GetOrigPointer(OMD));    
+                    OHD->GetOrigPointer(OMD));
+  }
+  
+  // Add getters/setters to the class
+  for (ObjCHookDecl::propimpl_iterator P = OHD->propimpl_begin(),
+       PEnd = OHD->propimpl_end();
+       P != PEnd; ++P) {
+    
+    if(ObjCMethodDecl *OMD = (*P)->getPropertyDecl()->getGetterMethodDecl()) {
+      llvm::Value *selector = CGM.getObjCRuntime().GetSelector(*this, OMD);
+
+      if (llvm::Function *def = OHD->GetMethodDefinition(OMD))
+        EmitNewMethod(clazz, selector, def, OMD);
+    }
+    
+    if(ObjCMethodDecl *OMD = (*P)->getPropertyDecl()->getSetterMethodDecl()) {
+      llvm::Value *selector = CGM.getObjCRuntime().GetSelector(*this, OMD);
+
+      if (llvm::Function *def = OHD->GetMethodDefinition(OMD))
+        EmitNewMethod(clazz, selector, def, OMD);
+    }
+
   }
   
   FinishFunction(SourceLocation());

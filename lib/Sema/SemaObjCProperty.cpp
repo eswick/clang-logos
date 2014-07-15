@@ -837,6 +837,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
   // a declaration.
   ObjCImplementationDecl *IC = 0;
   ObjCCategoryImplDecl* CatImplClass = 0;
+  ObjCHookDecl *HC = 0;
   if ((IC = dyn_cast<ObjCImplementationDecl>(ClassImpDecl))) {
     IDecl = IC->getClassInterface();
     // We always synthesize an interface for an implementation
@@ -931,6 +932,22 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       << Category->getDeclName();
       return 0;
     }
+  } else if ((HC = dyn_cast<ObjCHookDecl>(ClassImpDecl))) {
+    IDecl = HC->getClassInterface();
+    if (!IDecl) {
+      Diag(AtLoc, diag::error_missing_property_interface);
+      return 0;
+    }
+    
+    // TODO: Check categories
+    property = IDecl->FindPropertyDeclaration(PropertyId);
+    
+    if (!property) {
+      Diag(PropertyLoc, diag::error_missing_property_declaration)
+      << HC->getDeclName() << PropertyId->getName();
+      return 0;
+    }
+    
   } else {
     Diag(AtLoc, diag::error_bad_property_context);
     return 0;
@@ -1283,7 +1300,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
         Ivar->setInvalidDecl();
       }
     }
-  } else {
+  } else if (CatImplClass) {
     if (Synthesize)
       if (ObjCPropertyImplDecl *PPIDecl =
           CatImplClass->FindPropertyImplIvarDecl(PropertyIvar)) {
@@ -1300,6 +1317,16 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       return 0;
     }
     CatImplClass->addPropertyImplementation(PIDecl);
+  } else {
+    assert(HC && "@hook decl is null");
+
+    if (ObjCPropertyImplDecl *PPIDecl =
+        HC->FindPropertyImplDecl(PropertyId)) {
+      Diag(PropertyDiagLoc, diag::error_property_implemented) << PropertyId;
+      Diag(PPIDecl->getLocation(), diag::note_previous_declaration);
+      return 0;
+    }
+    HC->addPropertyImplementation(PIDecl);
   }
 
   return PIDecl;

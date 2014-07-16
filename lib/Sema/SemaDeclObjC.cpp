@@ -2569,6 +2569,8 @@ Sema::ObjCContainerKind Sema::getObjCContainerKind() const {
       return Sema::OCK_Implementation;
     case Decl::ObjCCategoryImpl:
       return Sema::OCK_CategoryImplementation;
+    case Decl::ObjCHook:
+      return Sema::OCK_Hook;
 
     default:
       return Sema::OCK_None;

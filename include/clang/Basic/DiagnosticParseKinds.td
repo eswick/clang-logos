@@ -373,7 +373,7 @@ def err_objc_no_attributes_on_category : Error<
 def err_objc_missing_end : Error<"missing '@end'">;
 def note_objc_container_start : Note<
   "%select{class|protocol|category|class extension|implementation"
-  "|category implementation}0 started here">;
+  "|category implementation|hook}0 started here">;
 def warn_objc_protocol_qualifier_missing_id : Warning<
   "protocol has no object type specified; defaults to qualified 'id'">;
 def err_objc_unknown_at : Error<"expected an Objective-C directive after '@'">;

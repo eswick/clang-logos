@@ -583,6 +583,8 @@ void CodeGenFunction::EmitNewMethod(llvm::CallInst *_class,
 /// method inside a \@hook container.
 
 void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
+  disableDebugInfo();
+  
   llvm::Function *Fn = StartLogosConstructor();
   
   llvm::CallInst *clazz = EmitGetClassRuntimeCall(
@@ -645,6 +647,7 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
   
   CGM.AddGlobalCtor(Fn);
   
+  enableDebugInfo();
 }
 
 /// Emits an @orig expression

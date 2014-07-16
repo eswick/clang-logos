@@ -1101,6 +1101,9 @@ public:
   llvm::Function* StartLogosConstructor();
   llvm::CallInst* EmitGetClassRuntimeCall(std::string ClassName);
   llvm::CallInst* EmitSelRegisterName(std::string selector);
+  llvm::CallInst* EmitGetIvarRuntimeCall(llvm::Value *clazz, std::string ivar);
+  llvm::CallInst* EmitGetIvarOffsetRuntimeCall(llvm::Value *ivar);
+  
   void EmitMessageHook(llvm::CallInst *_class, 
                        llvm::Value *message, 
                        llvm::Function* hook, 
@@ -1109,6 +1112,13 @@ public:
                      llvm::Value *selector,
                      llvm::Function *impl,
                      ObjCMethodDecl *OMD);
+  
+  llvm::Value* EmitDynamicIvarOffset(const ObjCIvarDecl *Ivar,
+                                     const ObjCInterfaceDecl *Interface);
+  
+  LValue EmitLValueForIvarDynamic(QualType ObjectTy,
+                                  llvm::Value* Base, const ObjCIvarDecl *Ivar,
+                                  unsigned CVRQualifiers);
                        
   void GenerateHookConstructor(ObjCHookDecl *OHD);
 

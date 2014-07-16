@@ -453,6 +453,57 @@ llvm::CallInst *CodeGenFunction::EmitGetClassRuntimeCall(std::string ClassName) 
   return EmitNounwindRuntimeCall(objc_getClassFn, objc_getClassArgs);
 }
 
+/// Generates a call to class_getInstanceVariable and returns the result.
+
+llvm::CallInst *CodeGenFunction::EmitGetIvarRuntimeCall(llvm::Value *clazz,
+                                                        std::string ivar) {
+  llvm::Type *argTypes[] = { Int8PtrTy, Int8PtrTy };
+  llvm::FunctionType *fnType = llvm::FunctionType::get(Int8PtrTy, 
+                                                       argTypes, 
+                                                       false);
+    
+  llvm::Constant *Fn = CGM.CreateRuntimeFunction(fnType, 
+                                                 "class_getInstanceVariable");
+    
+  if (llvm::Function *f = dyn_cast<llvm::Function>(Fn)) {
+      f->setLinkage(llvm::Function::ExternalWeakLinkage);
+  }
+    
+  llvm::Constant *nameString = CGM.GetAddrOfConstantCString(ivar);
+    
+  llvm::Value *args[2];
+  args[0] = Builder.CreateBitCast(clazz, Int8PtrTy);
+  args[1] = Builder.CreateBitCast(nameString, Int8PtrTy);
+    
+    
+  return EmitNounwindRuntimeCall(Fn, args);
+}
+
+/// Generates a call to ivar_getOffset and returns the result.
+
+llvm::CallInst *CodeGenFunction::EmitGetIvarOffsetRuntimeCall(
+                                                            llvm::Value *ivar) {
+  llvm::Type *argTypes[] = { Int8PtrTy };
+  llvm::FunctionType *fnType = llvm::FunctionType::get( 
+                                          /* FIXME: This probably
+                                          isn't the correct return type */
+                                                       Int64Ty,
+                                                       argTypes, 
+                                                       false);
+    
+  llvm::Constant *Fn = CGM.CreateRuntimeFunction(fnType, 
+                                                 "ivar_getOffset");
+    
+  if (llvm::Function *f = dyn_cast<llvm::Function>(Fn)) {
+      f->setLinkage(llvm::Function::ExternalWeakLinkage);
+  }
+    
+  llvm::Value *args[1];
+  args[0] = Builder.CreateBitCast(ivar, Int8PtrTy);
+  
+  return EmitNounwindRuntimeCall(Fn, args);
+}
+
 
 /// Emits a call to MSHookMessageEx with the given class, message, and hook.
 /// old should be a pointer to a function pointer that will point to the
@@ -629,4 +680,33 @@ llvm::Value* CodeGenFunction::EmitObjCOrigExpr(const ObjCOrigExpr *E) {
   RValue rvalue = EmitCall(MSI.CallInfo, Fn, ReturnValueSlot(), Args);
   
   return rvalue.getScalarVal();
+}
+
+llvm::Value *CodeGenFunction::EmitDynamicIvarOffset(const ObjCIvarDecl *Ivar,
+                                           const ObjCInterfaceDecl *Interface) {
+  
+  llvm::Value *clazz = EmitGetClassRuntimeCall(Interface->getNameAsString());
+  llvm::Value *ivar = EmitGetIvarRuntimeCall(clazz, Ivar->getNameAsString());
+  llvm::Value *offset = Builder.CreateBitCast(
+                                             EmitGetIvarOffsetRuntimeCall(ivar),
+                                             Int64Ty);
+  
+  /*llvm::Value *self = Builder.CreateBitCast(LoadObjCSelf, Int8PtrTy);
+  
+  llvm::Value *result = Builder.CreateAdd(LoadObjCSelf(), offset);*/
+                                             
+  return offset;
+}
+
+LValue CodeGenFunction::EmitLValueForIvarDynamic(QualType ObjectTy,
+                              llvm::Value* Base, const ObjCIvarDecl *Ivar,
+                              unsigned CVRQualifiers) {
+  const ObjCInterfaceDecl *ID =
+    ObjectTy->getAs<ObjCObjectType>()->getInterface();
+    
+  llvm::Value *Offset = EmitDynamicIvarOffset(Ivar, ID);
+  
+  return CGM.getObjCRuntime().EmitValueForIvarAtOffset(*this, ID, Base, 
+                                                       Ivar, CVRQualifiers,
+                                                       Offset);
 }

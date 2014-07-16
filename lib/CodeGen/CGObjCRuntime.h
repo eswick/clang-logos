@@ -81,13 +81,14 @@ protected:
   uint64_t ComputeIvarBaseOffset(CodeGen::CodeGenModule &CGM,
                                  const ObjCImplementationDecl *OID,
                                  const ObjCIvarDecl *Ivar);
-
+public:
   LValue EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
                                   const ObjCInterfaceDecl *OID,
                                   llvm::Value *BaseValue,
                                   const ObjCIvarDecl *Ivar,
                                   unsigned CVRQualifiers,
                                   llvm::Value *Offset);
+protected:
   /// Emits a try / catch statement.  This function is intended to be called by
   /// subclasses, and provides a generic mechanism for generating these, which
   /// should be usable by all runtimes.  The caller must provide the functions

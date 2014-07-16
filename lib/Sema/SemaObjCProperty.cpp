@@ -956,7 +956,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
   bool CompleteTypeErr = false;
   bool compat = true;
   // Check that we have a valid, previously declared ivar for @synthesize
-  if (Synthesize) {
+  if (Synthesize && !HC) {
     // @synthesize
     if (!PropertyIvar)
       PropertyIvar = PropertyId;
@@ -1153,7 +1153,9 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
     }
     if (getLangOpts().ObjCAutoRefCount)
       checkARCPropertyImpl(*this, PropertyLoc, property, Ivar);
-  } else if (PropertyIvar)
+  } else if (PropertyIvar && HC)
+    Diag(PropertyDiagLoc, diag::error_property_in_hook_ivar_decl);
+  else if (PropertyIvar)
     // @dynamic
     Diag(PropertyDiagLoc, diag::error_dynamic_property_ivar_decl);
     

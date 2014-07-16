@@ -821,6 +821,8 @@ def error_strong_property : Error<
   "existing instance variable %1 for strong property %0 may not be __weak">;
 def error_dynamic_property_ivar_decl : Error<
   "dynamic property can not have instance variable specification">;
+def error_property_in_hook_ivar_decl : Error<
+  "properties within @hook can not have instance variable specification">;
 def error_duplicate_ivar_use : Error<
   "synthesized properties %0 and %1 both claim instance variable %2">;
 def error_property_implemented : Error<"property %0 is already implemented">;

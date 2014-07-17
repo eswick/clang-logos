@@ -658,13 +658,19 @@ llvm::Value* CodeGenFunction::EmitObjCOrigExpr(const ObjCOrigExpr *E) {
   
   CallArgList Args;
   
+  // Emit self, _cmd
   Args.add(RValue::get(LoadObjCSelf()), getContext().getObjCIdType());
-  Args.add(RValue::get(Runtime.GetSelector(*this, 
-                                            OMD->getSelector())), 
+  Args.add(RValue::get(Runtime.GetSelector(*this, OMD->getSelector())), 
                        getContext().getObjCSelType());
   
-  
-  EmitCallArgs(Args, OMD, E->arg_begin(), E->arg_end());
+  // Emit arguments
+  for (ObjCOrigExpr::const_arg_iterator I = E->arg_begin(), S = E->arg_end();
+       I != S; ++I) {
+    
+    RValue emittedArg = EmitAnyExpr(*I);
+      
+    Args.add(emittedArg, I->getType());
+  }
   
   // Even though getMessageSendInfo is meant for objc_msgSend, it works
   // just as well for calling the original implementation directly.

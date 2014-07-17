@@ -42,6 +42,10 @@ static unsigned CalculateAssociationPolicy(ObjCPropertyDecl *D) {
   
   switch (D->getSetterKind()) {
     case ObjCPropertyDecl::Assign:
+      if (!D->getType()->isObjCRetainableType()) {
+        // This type is being wrapped in NSValue; retain it
+        return 1;
+      }
       return 0;
     case ObjCPropertyDecl::Retain:
       baseValue = 1;

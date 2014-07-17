@@ -956,8 +956,10 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
   bool CompleteTypeErr = false;
   bool compat = true;
   // Check that we have a valid, previously declared ivar for @synthesize
-  if (Synthesize && !HC) {
+  if (Synthesize) {
     // @synthesize
+    if (PropertyIvar && HC) // '@synthesize <prop> = <ivar>' in @hook
+      Diag(PropertyDiagLoc, diag::error_property_in_hook_ivar_decl);
     if (!PropertyIvar)
       PropertyIvar = PropertyId;
     // Check that this is a previously declared 'ivar' in 'IDecl' interface
@@ -1077,8 +1079,10 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
         Ivar->setInvalidDecl();
       } else if (CompleteTypeErr)
           Ivar->setInvalidDecl();
-      ClassImpDecl->addDecl(Ivar);
-      IDecl->makeDeclVisibleInContext(Ivar);
+      if (!HC) {
+        ClassImpDecl->addDecl(Ivar);
+        IDecl->makeDeclVisibleInContext(Ivar);
+      }
 
       if (getLangOpts().ObjCRuntime.isFragile())
         Diag(PropertyDiagLoc, diag::error_missing_property_ivar_decl)
@@ -1153,9 +1157,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
     }
     if (getLangOpts().ObjCAutoRefCount)
       checkARCPropertyImpl(*this, PropertyLoc, property, Ivar);
-  } else if (PropertyIvar && HC)
-    Diag(PropertyDiagLoc, diag::error_property_in_hook_ivar_decl);
-  else if (PropertyIvar)
+  } else if (PropertyIvar)
     // @dynamic
     Diag(PropertyDiagLoc, diag::error_dynamic_property_ivar_decl);
     

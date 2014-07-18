@@ -1100,6 +1100,7 @@ public:
   
   llvm::Function* StartLogosConstructor();
   llvm::CallInst* EmitGetClassRuntimeCall(std::string ClassName);
+  llvm::CallInst* EmitObjectGetClassRuntimeCall(llvm::Value *O);
   llvm::CallInst* EmitSelRegisterName(std::string selector);
   llvm::CallInst* EmitGetIvarRuntimeCall(llvm::Value *clazz, std::string ivar);
   llvm::CallInst* EmitGetIvarOffsetRuntimeCall(llvm::Value *ivar);

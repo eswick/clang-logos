@@ -457,6 +457,29 @@ llvm::CallInst *CodeGenFunction::EmitGetClassRuntimeCall(std::string ClassName) 
   return EmitNounwindRuntimeCall(objc_getClassFn, objc_getClassArgs);
 }
 
+/// Generates a call to object_getClass and returns the result.
+///
+/// Class object_getClass(id object)
+
+llvm::CallInst *CodeGenFunction::EmitObjectGetClassRuntimeCall(llvm::Value *O) {
+  llvm::Type *argTypes[] = { Int8PtrTy };
+  llvm::FunctionType *fnType = llvm::FunctionType::get(Int8PtrTy,
+                                                       argTypes,
+                                                       false);
+    
+  llvm::Constant *Fn = CGM.CreateRuntimeFunction(fnType, "object_getClass");
+    
+  if (llvm::Function *f = dyn_cast<llvm::Function>(Fn)) {
+      f->setLinkage(llvm::Function::ExternalWeakLinkage);
+  }
+  
+  llvm::Value *args[1];
+  args[0] = Builder.CreateBitCast(O, Int8PtrTy);
+    
+    
+  return EmitNounwindRuntimeCall(Fn, args);
+}
+
 /// Generates a call to class_getInstanceVariable and returns the result.
 
 llvm::CallInst *CodeGenFunction::EmitGetIvarRuntimeCall(llvm::Value *clazz,
@@ -594,6 +617,9 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
   llvm::CallInst *clazz = EmitGetClassRuntimeCall(
                               OHD->getClassInterface()->getNameAsString());
   
+  // Get the metaclass, which is used if we're hooking a class method.
+  llvm::CallInst *metaclass = EmitObjectGetClassRuntimeCall(clazz);
+  
   // Set up hooked and new methods
   for (ObjCContainerDecl::method_iterator M = OHD->meth_begin(),
        MEnd = OHD->meth_end();
@@ -621,7 +647,7 @@ void CodeGenFunction::GenerateHookConstructor(ObjCHookDecl *OHD) {
       }
     }
     
-    EmitMessageHook(clazz, selector, 
+    EmitMessageHook(OMD->isClassMethod() ? metaclass : clazz, selector, 
                     OHD->GetMethodDefinition(OMD),
                     OHD->GetOrigPointer(OMD));
   }

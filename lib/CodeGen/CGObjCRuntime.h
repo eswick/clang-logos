@@ -135,7 +135,7 @@ public:
 
   /// Generate a constant string object.
   virtual llvm::Constant *GenerateConstantString(const StringLiteral *) = 0;
-  
+
   /// Generate a category.  A category contains a list of methods (and
   /// accompanying metadata) and a list of protocols.
   virtual void GenerateCategory(const ObjCCategoryImplDecl *OCD) = 0;
@@ -157,9 +157,9 @@ public:
                       Selector Sel,
                       llvm::Value *Receiver,
                       const CallArgList &CallArgs,
-                      const ObjCInterfaceDecl *Class = 0,
-                      const ObjCMethodDecl *Method = 0) = 0;
-                      
+                      const ObjCInterfaceDecl *Class = nullptr,
+                      const ObjCMethodDecl *Method = nullptr) = 0;
+
   virtual CodeGen::RValue
   GenerateMessageSend(CodeGen::CodeGenFunction &CGF,
                       ReturnValueSlot ReturnSlot,
@@ -168,8 +168,8 @@ public:
                       llvm::Value *Receiver,
                       const CallArgList &CallArgs,
                       const ObjCInterfaceDecl *Class = 0,
-                      const ObjCMethodDecl *Method = 0) { 
-    llvm_unreachable("runtime doesn't support direct selectors"); 
+                      const ObjCMethodDecl *Method = 0) {
+    llvm_unreachable("runtime doesn't support direct selectors");
   };
 
   /// Generate an Objective-C message send operation to the super
@@ -188,7 +188,7 @@ public:
                            llvm::Value *Self,
                            bool IsClassMessage,
                            const CallArgList &CallArgs,
-                           const ObjCMethodDecl *Method = 0) = 0;
+                           const ObjCMethodDecl *Method = nullptr) = 0;
 
   /// Emit the code to return the named protocol as an object, as in a
   /// \@protocol expression.
@@ -215,7 +215,7 @@ public:
   virtual llvm::Constant *GetPropertySetFunction() = 0;
 
   /// Return the runtime function for optimized setting properties.
-  virtual llvm::Constant *GetOptimizedPropertySetFunction(bool atomic, 
+  virtual llvm::Constant *GetOptimizedPropertySetFunction(bool atomic,
                                                           bool copy) = 0;
 
   // API for atomic copying of qualified aggregates in getter.
@@ -228,17 +228,17 @@ public:
   /// API for atomic copying of qualified aggregates with non-trivial copy
   /// assignment (c++) in getter.
   virtual llvm::Constant *GetCppAtomicObjectGetFunction() = 0;
-  
+
   /// GetClass - Return a reference to the class for the given
   /// interface decl.
   virtual llvm::Value *GetClass(CodeGenFunction &CGF,
                                 const ObjCInterfaceDecl *OID) = 0;
-  
-  
+
+
   virtual llvm::Value *EmitNSAutoreleasePoolClassRef(CodeGenFunction &CGF) {
     llvm_unreachable("autoreleasepool unsupported in this ABI");
   }
-  
+
   /// EnumerationMutationFunction - Return the function that's called by the
   /// compiler when a mutation is detected during foreach iteration.
   virtual llvm::Constant *EnumerationMutationFunction() = 0;
@@ -281,7 +281,8 @@ public:
                                   const CodeGen::CGBlockInfo &blockInfo) = 0;
   virtual llvm::Constant *BuildByrefLayout(CodeGen::CodeGenModule &CGM,
                                            QualType T) = 0;
-  virtual llvm::GlobalVariable *GetClassGlobal(const std::string &Name) = 0;
+  virtual llvm::GlobalVariable *GetClassGlobal(const std::string &Name,
+                                               bool Weak = false) = 0;
 
   struct MessageSendInfo {
     const CGFunctionInfo &CallInfo;

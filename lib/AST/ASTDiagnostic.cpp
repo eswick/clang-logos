@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTLambda.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/ExprCXX.h"
@@ -48,6 +50,11 @@ static QualType Desugar(ASTContext &Context, QualType QT, bool &ShouldAKA) {
     }
     // ...or an attributed type...
     if (const AttributedType *AT = dyn_cast<AttributedType>(Ty)) {
+      QT = AT->desugar();
+      continue;
+    }
+    // ...or an adjusted type...
+    if (const AdjustedType *AT = dyn_cast<AdjustedType>(Ty)) {
       QT = AT->desugar();
       continue;
     }
@@ -155,9 +162,8 @@ break; \
 /// diagnostic message
 static std::string
 ConvertTypeToDiagnosticString(ASTContext &Context, QualType Ty,
-                              const DiagnosticsEngine::ArgumentValue *PrevArgs,
-                              unsigned NumPrevArgs,
-                              ArrayRef<intptr_t> QualTypeVals) {
+                            ArrayRef<DiagnosticsEngine::ArgumentValue> PrevArgs,
+                            ArrayRef<intptr_t> QualTypeVals) {
   // FIXME: Playing with std::string is really slow.
   bool ForceAKA = false;
   QualType CanTy = Ty.getCanonicalType();
@@ -195,7 +201,7 @@ ConvertTypeToDiagnosticString(ASTContext &Context, QualType Ty,
   // Check to see if we already desugared this type in this
   // diagnostic.  If so, don't do it again.
   bool Repeated = false;
-  for (unsigned i = 0; i != NumPrevArgs; ++i) {
+  for (unsigned i = 0, e = PrevArgs.size(); i != e; ++i) {
     // TODO: Handle ak_declcontext case.
     if (PrevArgs[i].first == DiagnosticsEngine::ak_qualtype) {
       void *Ptr = (void*)PrevArgs[i].second;
@@ -222,6 +228,20 @@ ConvertTypeToDiagnosticString(ASTContext &Context, QualType Ty,
         return S;
       }
     }
+
+    // Give some additional info on vector types. These are either not desugared
+    // or displaying complex __attribute__ expressions so add details of the
+    // type and element count.
+    if (Ty->isVectorType()) {
+      const VectorType *VTy = Ty->getAs<VectorType>();
+      std::string DecoratedString;
+      llvm::raw_string_ostream OS(DecoratedString);
+      const char *Values = VTy->getNumElements() > 1 ? "values" : "value";
+      OS << "'" << S << "' (vector of " << VTy->getNumElements() << " '"
+         << VTy->getElementType().getAsString(Context.getPrintingPolicy())
+         << "' " << Values << ")";
+      return OS.str();
+    }
   }
 
   S = "'" + S + "'";
@@ -236,12 +256,9 @@ static bool FormatTemplateTypeDiff(ASTContext &Context, QualType FromType,
 void clang::FormatASTNodeDiagnosticArgument(
     DiagnosticsEngine::ArgumentKind Kind,
     intptr_t Val,
-    const char *Modifier,
-    unsigned ModLen,
-    const char *Argument,
-    unsigned ArgLen,
-    const DiagnosticsEngine::ArgumentValue *PrevArgs,
-    unsigned NumPrevArgs,
+    StringRef Modifier,
+    StringRef Argument,
+    ArrayRef<DiagnosticsEngine::ArgumentValue> PrevArgs,
     SmallVectorImpl<char> &Output,
     void *Cookie,
     ArrayRef<intptr_t> QualTypeVals) {
@@ -276,28 +293,26 @@ void clang::FormatASTNodeDiagnosticArgument(
       // Attempting to do a template diff on non-templates.  Set the variables
       // and continue with regular type printing of the appropriate type.
       Val = TDT.PrintFromType ? TDT.FromType : TDT.ToType;
-      ModLen = 0;
-      ArgLen = 0;
+      Modifier = StringRef();
+      Argument = StringRef();
       // Fall through
     }
     case DiagnosticsEngine::ak_qualtype: {
-      assert(ModLen == 0 && ArgLen == 0 &&
+      assert(Modifier.empty() && Argument.empty() &&
              "Invalid modifier for QualType argument");
       
       QualType Ty(QualType::getFromOpaquePtr(reinterpret_cast<void*>(Val)));
-      OS << ConvertTypeToDiagnosticString(Context, Ty, PrevArgs, NumPrevArgs,
-                                          QualTypeVals);
+      OS << ConvertTypeToDiagnosticString(Context, Ty, PrevArgs, QualTypeVals);
       NeedQuotes = false;
       break;
     }
     case DiagnosticsEngine::ak_declarationname: {
-      if (ModLen == 9 && !memcmp(Modifier, "objcclass", 9) && ArgLen == 0)
+      if (Modifier == "objcclass" && Argument.empty())
         OS << '+';
-      else if (ModLen == 12 && !memcmp(Modifier, "objcinstance", 12)
-                && ArgLen==0)
+      else if (Modifier == "objcinstance" && Argument.empty())
         OS << '-';
       else
-        assert(ModLen == 0 && ArgLen == 0 &&
+        assert(Modifier.empty() && Argument.empty() &&
                "Invalid modifier for DeclarationName argument");
 
       OS << DeclarationName::getFromOpaqueInteger(Val);
@@ -305,10 +320,10 @@ void clang::FormatASTNodeDiagnosticArgument(
     }
     case DiagnosticsEngine::ak_nameddecl: {
       bool Qualified;
-      if (ModLen == 1 && Modifier[0] == 'q' && ArgLen == 0)
+      if (Modifier == "q" && Argument.empty())
         Qualified = true;
       else {
-        assert(ModLen == 0 && ArgLen == 0 &&
+        assert(Modifier.empty() && Argument.empty() &&
                "Invalid modifier for NamedDecl* argument");
         Qualified = false;
       }
@@ -325,7 +340,8 @@ void clang::FormatASTNodeDiagnosticArgument(
     case DiagnosticsEngine::ak_declcontext: {
       DeclContext *DC = reinterpret_cast<DeclContext *> (Val);
       assert(DC && "Should never have a null declaration context");
-      
+      NeedQuotes = false;
+
       if (DC->isTranslationUnit()) {
         // FIXME: Get these strings from some localized place
         if (Context.getLangOpts().CPlusPlus)
@@ -335,10 +351,17 @@ void clang::FormatASTNodeDiagnosticArgument(
       } else if (TypeDecl *Type = dyn_cast<TypeDecl>(DC)) {
         OS << ConvertTypeToDiagnosticString(Context,
                                             Context.getTypeDeclType(Type),
-                                            PrevArgs, NumPrevArgs,
-                                            QualTypeVals);
+                                            PrevArgs, QualTypeVals);
       } else {
         // FIXME: Get these strings from some localized place
+        if (isa<BlockDecl>(DC)) {
+          OS << "block literal";
+          break;
+        }
+        if (isLambdaCallOperator(DC)) {
+          OS << "lambda expression";
+          break;
+        }
         NamedDecl *ND = cast<NamedDecl>(DC);
         if (isa<NamespaceDecl>(ND))
           OS << "namespace ";
@@ -351,9 +374,16 @@ void clang::FormatASTNodeDiagnosticArgument(
         ND->getNameForDiagnostic(OS, Context.getPrintingPolicy(), true);
         OS << '\'';
       }
+      break;
+    }
+    case DiagnosticsEngine::ak_attr: {
+      const Attr *At = reinterpret_cast<Attr *>(Val);
+      assert(At && "Received null Attr object!");
+      OS << '\'' << At->getSpelling() << '\'';
       NeedQuotes = false;
       break;
     }
+
   }
 
   OS.flush();
@@ -470,10 +500,11 @@ class TemplateDiff {
 
       DiffNode(unsigned ParentNode = 0)
         : Kind(Invalid), NextNode(0), ChildNode(0), ParentNode(ParentNode),
-          FromType(), ToType(), FromExpr(0), ToExpr(0), FromTD(0), ToTD(0),
-          IsValidFromInt(false), IsValidToInt(false), FromValueDecl(0),
-          ToValueDecl(0), FromAddressOf(false), ToAddressOf(false),
-          FromDefault(false), ToDefault(false), Same(false) { }
+          FromType(), ToType(), FromExpr(nullptr), ToExpr(nullptr),
+          FromTD(nullptr), ToTD(nullptr), IsValidFromInt(false),
+          IsValidToInt(false), FromValueDecl(nullptr), ToValueDecl(nullptr),
+          FromAddressOf(false), ToAddressOf(false), FromDefault(false),
+          ToDefault(false), Same(false) {}
     };
 
     /// FlatTree - A flattened tree used to store the DiffNodes.
@@ -718,7 +749,7 @@ class TemplateDiff {
     TSTiterator(ASTContext &Context, const TemplateSpecializationType *TST)
         : TST(TST),
           DesugarTST(GetTemplateSpecializationType(Context, TST->desugar())),
-          Index(0), CurrentTA(0), EndTA(0) {
+          Index(0), CurrentTA(nullptr), EndTA(nullptr) {
       if (isEnd()) return;
 
       // Set to first template argument.  If not a parameter pack, done.
@@ -809,13 +840,13 @@ class TemplateDiff {
     const RecordType *RT = Ty->getAs<RecordType>();
 
     if (!RT)
-      return 0;
+      return nullptr;
 
     const ClassTemplateSpecializationDecl *CTSD =
         dyn_cast<ClassTemplateSpecializationDecl>(RT->getDecl());
 
     if (!CTSD)
-      return 0;
+      return nullptr;
 
     Ty = Context.getTemplateSpecializationType(
              TemplateName(CTSD->getSpecializedTemplate()),
@@ -887,9 +918,9 @@ class TemplateDiff {
       // Handle Expressions
       if (NonTypeTemplateParmDecl *DefaultNTTPD =
               dyn_cast<NonTypeTemplateParmDecl>(ParamND)) {
-        Expr *FromExpr = 0, *ToExpr = 0;
+        Expr *FromExpr = nullptr, *ToExpr = nullptr;
         llvm::APSInt FromInt, ToInt;
-        ValueDecl *FromValueDecl = 0, *ToValueDecl = 0;
+        ValueDecl *FromValueDecl = nullptr, *ToValueDecl = nullptr;
         unsigned ParamWidth = 128; // Safe default
         if (DefaultNTTPD->getType()->isIntegralOrEnumerationType())
           ParamWidth = Context.getIntWidth(DefaultNTTPD->getType());
@@ -928,25 +959,27 @@ class TemplateDiff {
                           ToIter.isEnd() && ToExpr);
           if (DefaultNTTPD->getType()->isIntegralOrEnumerationType()) {
             if (FromExpr)
-              FromInt = GetInt(FromIter, FromExpr);
+              HasFromInt = GetInt(FromIter, FromExpr, FromInt);
             if (ToExpr)
-              ToInt = GetInt(ToIter, ToExpr);
-            Tree.SetNode(FromInt, ToInt, FromExpr, ToExpr);
+              HasToInt = GetInt(ToIter, ToExpr, ToInt);
+          }
+          if (HasFromInt && HasToInt) {
+            Tree.SetNode(FromInt, ToInt, HasFromInt, HasToInt);
             Tree.SetSame(IsSameConvertedInt(ParamWidth, FromInt, ToInt));
+            Tree.SetKind(DiffTree::Integer);
+          } else if (HasFromInt || HasToInt) {
+            Tree.SetNode(FromInt, ToInt, HasFromInt, HasToInt);
+            Tree.SetSame(false);
             Tree.SetKind(DiffTree::Integer);
           } else {
             Tree.SetSame(IsEqualExpr(Context, ParamWidth, FromExpr, ToExpr));
             Tree.SetKind(DiffTree::Expression);
           }
         } else if (HasFromInt || HasToInt) {
-          if (!HasFromInt && FromExpr) {
-            FromInt = GetInt(FromIter, FromExpr);
-            HasFromInt = true;
-          }
-          if (!HasToInt && ToExpr) {
-            ToInt = GetInt(ToIter, ToExpr);
-            HasToInt = true;
-          }
+          if (!HasFromInt && FromExpr)
+            HasFromInt = GetInt(FromIter, FromExpr, FromInt);
+          if (!HasToInt && ToExpr)
+            HasToInt = GetInt(ToIter, ToExpr, ToInt);
           Tree.SetNode(FromInt, ToInt, HasFromInt, HasToInt);
           Tree.SetSame(IsSameConvertedInt(ParamWidth, FromInt, ToInt));
           Tree.SetDefault(FromIter.isEnd() && HasFromInt,
@@ -1072,7 +1105,7 @@ class TemplateDiff {
   /// GetExpr - Retrieves the template expression argument, including default
   /// arguments.
   Expr *GetExpr(const TSTiterator &Iter, NonTypeTemplateParmDecl *DefaultNTTPD) {
-    Expr *ArgExpr = 0;
+    Expr *ArgExpr = nullptr;
     bool isVariadic = DefaultNTTPD->isParameterPack();
 
     if (!Iter.isEnd())
@@ -1090,20 +1123,28 @@ class TemplateDiff {
 
   /// GetInt - Retrieves the template integer argument, including evaluating
   /// default arguments.
-  llvm::APInt GetInt(const TSTiterator &Iter, Expr *ArgExpr) {
+  bool GetInt(const TSTiterator &Iter, Expr *ArgExpr, llvm::APInt &Int) {
     // Default, value-depenedent expressions require fetching
-    // from the desugared TemplateArgument
-    if (Iter.isEnd() && ArgExpr->isValueDependent())
+    // from the desugared TemplateArgument, otherwise expression needs to
+    // be evaluatable.
+    if (Iter.isEnd() && ArgExpr->isValueDependent()) {
       switch (Iter.getDesugar().getKind()) {
         case TemplateArgument::Integral:
-          return Iter.getDesugar().getAsIntegral();
+          Int = Iter.getDesugar().getAsIntegral();
+          return true;
         case TemplateArgument::Expression:
           ArgExpr = Iter.getDesugar().getAsExpr();
-          return ArgExpr->EvaluateKnownConstInt(Context);
+          Int = ArgExpr->EvaluateKnownConstInt(Context);
+          return true;
         default:
-          assert(0 && "Unexpected template argument kind");
+          llvm_unreachable("Unexpected template argument kind");
       }
-    return ArgExpr->EvaluateKnownConstInt(Context);
+    } else if (ArgExpr->isEvaluatable(Context)) {
+      Int = ArgExpr->EvaluateKnownConstInt(Context);
+      return true;
+    }
+
+    return false;
   }
 
   /// GetValueDecl - Retrieves the template Decl argument, including
@@ -1119,7 +1160,7 @@ class TemplateDiff {
           ArgExpr = Iter.getDesugar().getAsExpr();
           return cast<DeclRefExpr>(ArgExpr)->getDecl();
         default:
-          assert(0 && "Unexpected template argument kind");
+          llvm_unreachable("Unexpected template argument kind");
       }
     DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ArgExpr);
     if (!DRE) {
@@ -1136,7 +1177,7 @@ class TemplateDiff {
     bool isVariadic = DefaultTTPD->isParameterPack();
 
     TemplateArgument TA = DefaultTTPD->getDefaultArgument().getArgument();
-    TemplateDecl *DefaultTD = 0;
+    TemplateDecl *DefaultTD = nullptr;
     if (TA.getKind() != TemplateArgument::Null)
       DefaultTD = TA.getAsTemplate().getAsTemplateDecl();
 
@@ -1145,7 +1186,7 @@ class TemplateDiff {
     if (!isVariadic)
       return DefaultTD;
 
-    return 0;
+    return nullptr;
   }
 
   /// IsSameConvertedInt - Returns true if both integers are equal when
@@ -1349,8 +1390,7 @@ class TemplateDiff {
         FromType.getLocalUnqualifiedType() ==
         ToType.getLocalUnqualifiedType()) {
       Qualifiers FromQual = FromType.getLocalQualifiers(),
-                 ToQual = ToType.getLocalQualifiers(),
-                 CommonQual;
+                 ToQual = ToType.getLocalQualifiers();
       PrintQualifiers(FromQual, ToQual);
       FromType.getLocalUnqualifiedType().print(OS, Policy);
       return;
@@ -1417,7 +1457,7 @@ class TemplateDiff {
     if (!E)
       OS << "(no argument)";
     else
-      E->printPretty(OS, 0, Policy); return;
+      E->printPretty(OS, nullptr, Policy);
   }
 
   /// PrintTemplateTemplate - Handles printing of template template arguments,
@@ -1487,6 +1527,8 @@ class TemplateDiff {
         Bold();
       }
       OS << Val.toString(10);
+    } else if (E) {
+      PrintExpr(E);
     } else {
       OS << "(no argument)";
     }

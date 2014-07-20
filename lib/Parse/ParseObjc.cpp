@@ -82,12 +82,15 @@ Parser::DeclGroupPtrTy Parser::ParseObjCAtDirectives() {
   case tok::objc_import:
     if (getLangOpts().Modules)
       return ParseModuleImport(AtLoc);
+    else
+      goto token_default;
   case tok::objc_hook:
     if (getLangOpts().Logos)
       return ParseObjCAtHookDeclaration(AtLoc);
     // Fall through
   
   default:
+token_default:
     Diag(AtLoc, diag::err_unexpected_at);
     SkipUntil(tok::semi);
     SingleDecl = 0;
